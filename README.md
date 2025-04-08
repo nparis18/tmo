@@ -1,7 +1,7 @@
 # `TMO`:  Thresholding Multiple Outcomes (TMO)
 Stata package to implement TMO, which uses multiple outcomes to adjust standard error for spatial correlation.
 
-PACKAGE IS FOR TESTING ONLY.
+PACKAGE IS CURRENTLY FOR TESTING ONLY.
 
 # Install
 To install the TMO package from this repository, please copy and run the following lines in Stata:

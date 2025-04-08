@@ -1,2 +1,18 @@
-# tmo
-Thresholding Multiple Outcomes (TMO) estimator for standard errors
+# `TMO`:  Thresholding Multiple Outcomes (TMO) estimator for standard errors
+Stata package to use multiple outcomes to adjust standard error for spatial correlation.
+
+# Install
+To install the TMO package from this repository, copy and run the following lines in Stata:
+
+<pre> 
+  ```
+  // Remove existing program if installed previously
+  cap ado uninstall tmo
+  // Install most recent version
+  net install tmo, from("https://raw.githubusercontent.com/wjnkim/tmo/master/src")
+  
+  ``` 
+</pre>
+
+# References
+DellaVigna, Stefano, Guido Imbens, Woojin Kim, and David Ritzwoller. (2025). "Using Multiple Outcomes to Adjust Standard Errors for Spatial Correlation."

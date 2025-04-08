@@ -2,7 +2,7 @@
 Stata package to implement TMO, which uses multiple outcomes to adjust standard error for spatial correlation.
 
 # Install
-To install the TMO package from this repository, copy and run the following lines in Stata:
+To install the TMO package from this repository, please copy and run the following lines in Stata:
 <pre> * Remove existing program if installed previously
   cap ado uninstall tmo
   

@@ -1,0 +1,15 @@
+v 0.9.0b1
+d 'tmo': Threshold Multiple Outcomes (TMO) standard error estimator
+d 
+d Requires: 
+d - Stata version 13
+d - gtools package (ssc install gtools)
+d
+d Distribution Date: 2025-04-08
+d
+d Author: Woojin Kim
+d
+d Support: email wjnkim@stanford.edu
+d
+F tmo.ado
+F tmo.sthlp

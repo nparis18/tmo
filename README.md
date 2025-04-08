@@ -5,13 +5,11 @@ Stata package to use multiple outcomes to adjust standard error for spatial corr
 To install the TMO package from this repository, copy and run the following lines in Stata:
 
 <pre> 
-  ```
-  // Remove existing program if installed previously
+  * Remove existing program if installed previously
   cap ado uninstall tmo
-  // Install most recent version
-  net install tmo, from("https://raw.githubusercontent.com/wjnkim/tmo/master/src")
   
-  ``` 
+  * Install most recent version
+  net install tmo, from("https://raw.githubusercontent.com/wjnkim/tmo/master/src")
 </pre>
 
 # References

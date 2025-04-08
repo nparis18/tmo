@@ -9,10 +9,10 @@
 {title:Syntax}
 
 {p 8 16 2}
-{cmd:tmo, cmd() y() x() d()} {opth id:var()} [{it:options}]
+{cmd:tmo, cmd(str) y({it:{help varname}}) x({it:{help varname}}) d({it:{help varlist}})} {opt id:var()} [{it:options}]
 {p_end}
 
-{synoptset 11}{...}
+{synoptset 20}{...}
 {synopthdr}
 {synoptline}
 {synopt :{opth t:imevar(varname)}} for panel settings, the time variable must be specified in {cmd:timevar()}{p_end}
@@ -24,14 +24,15 @@
 {title:Description}
 
 {pstd}
-This Stata package implements the Thresholding Multiple Outcomes (TMO) method for estimating standard errors described in {help tmo##mainpaper:DellaVigna et al. (2025)}. The TMO method accounts for spatial correlation using a set of auxiliary outcomes.
+This Stata package implements the Thresholding Multiple Outcomes (TMO) method for estimating standard errors described in {help tmo##mainpaper:DellaVigna et al. (2025)}. 
+The TMO method accounts for spatial correlation using a set of auxiliary outcomes.
  
 
 {marker options}{...}
 {title:Options}
 
 {phang}
-{opth t:imevar(varname)}} must be specified in panel settings with the time variable (e.g., year).
+{opth t:imevar(varname)} must be specified in panel settings with the time variable (e.g., year).
 
 
 {marker examples}{...}
@@ -48,20 +49,9 @@ This Stata package implements the Thresholding Multiple Outcomes (TMO) method fo
 {cmd:tmo} stores the following in {cmd:e()}:
 
 {synoptset 20 tabbed}{...}
-{p2col 5 15 19 2: Matrices}{p_end}
+{p2col 5 15 19 2: Scalars}{p_end}
 {synopt:{cmd:e(tmo_se)}}TMO standard error estimate{p_end}
 {p2colreset}{...}
-
-
-
-
-{marker authors}{...}
-{title:Author}
-
-{pstd}
-Woojin Kim{break}
-NBER{break}
-
 
 {marker disclaimer}{...}
 {title:Disclaimer}
@@ -74,4 +64,12 @@ This package is in beta/testing mode. Please use at your own risk.
 {title:References}
 
 {marker mainpaper}{...}
-{phang}DellaVigna, Stefano, Guido Imbens, Woojin Kim, and David Ritzwoller. "Using Multiple Outcomes to Adjust Standard Errors for Spatial Correlation."
+{phang}DellaVigna, Stefano, Guido Imbens, Woojin Kim, and David Ritzwoller. "Using Multiple Outcomes to Adjust Standard Errors for Spatial Correlation."{p_end}
+
+{marker authors}{...}
+{title:Author}
+
+{pstd}
+Woojin Kim{break}
+wjnkim@stanford.edu{break}
+

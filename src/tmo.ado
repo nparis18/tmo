@@ -1,24 +1,71 @@
 *! version 0.9.0b1 2025-04-08
 
 capture program drop tmo
-program define tmo, eclass
+program define tmo, rclass
     version 13
 
     syntax, ///
-        cmd(str) y(varname) x(varname) d(varlist) ///
-        Idvar(varname) ///
+        cmd(str) x(varname) ylist(varlist) Idvar(varname) ///
         [Timevar(varname)] ///
         [MISSlimit(real 0.1)] ///
         [FILEsuffix(str)] ///
         [savedyad] ///
         [plotq] ///
-        [plothist] [plothistbinsize(int -1)] ///
+        [plothist] [plothistnbins(int 10000)] ///
         [plotse] [saveplotseest] ///
         [saveest]
+   
+    ********************************
+    *** RUN AND SAVE CMD OPTIONS ***
+    ********************************
+
+    qui `cmd'
+    local spec `e(cmd)'
+    
+    * Assert that cmd uses supported command
+    if !inlist("`spec'","regress","reghdfe","ivreghdfe","ivreg2") {
+            di as error "`spec' not supported"
+            exit
+    }
+
+    * Store original results and options
+    local y `e(depvar)'
+    scalar beta = _b[`x']
+    scalar se = _se[`x']
+    scalar N_obs = e(N)
+    scalar N_clust = e(N_clust)
+    scalar df_r = e(df_r)
+    cap drop __tmo_sample
+    gen byte __tmo_sample = e(sample)
+
+    * Extract clusters
+    local cluster `e(clustvar)'
+    
+    * Extract absorb vars for (iv)reghdfe
+    local absorb_vars `e(absvars)'
+
+    * Extract weights
+    if "`e(wexp)'"!="" {
+        local weightvar = subinstr("`e(wexp)'","=","",1)
+        local weightexp [`e(wtype)'`e(wexp)']
+    }
+    else {
+        local weightvar
+        local weightexp
+    }
+
+    *** END RUN AND SAVE CMD OPTIONS ***
 
     *********************
     *** OPTION CHECKS ***
     *********************
+
+    * Assert gtools installed
+    cap which gtools
+    if _rc {
+        di as error "tmo requires gtools package -- please run: ssc install gtools"
+        exit
+    }
 
     * Assert that y and x are in cmd and y is the dependent variable
     local ycheck: word 2 of `cmd'
@@ -39,15 +86,29 @@ program define tmo, eclass
 		exit
 	}
 
+    * Assert no duplicates in y ylist
+    local done ""
+    local dups ""
+    foreach var in `y' `ylist' {
+        if strpos("`done'","`var'")>0 {
+            local dups "`dups' `var'"
+        }
+        local done "`done' `var'"
+    }
+    if "`dups'"!="" {
+        di as error "Duplicated variables in depvar/ylist: `dups'"
+        exit
+    }
+
     * Assert misslimit is between 0 and 1
     if `misslimit'<0 | `misslimit'>1 {
         di as error "misslimit() value must be between 0 and 1"
         exit
     }
 
-    * Assert plothistbinsize is positive if given
-    if `plothistbinsize'!=-1 & `plothistbinsize'<=0 {
-        di as error "plothistbinsize() value must be positive"
+    * Assert plothistnbins is positive if given
+    if `plothistnbins'<=0 {
+        di as error "plothistnbins() value must be positive"
         exit
     }
 
@@ -62,37 +123,44 @@ program define tmo, eclass
         di as error "filesuffix() required for `plotse' `plothist' `savedyad' `saveplotseest' `saveest'"
     }
 
-    *** END OPTION CHECKS ***
-
-
-
-    *** Store coefficient of interest, original standard error, and sample
-    qui `cmd'
-    local spec `e(cmd)'
-    * Assert that cmd uses supported command
-    if !inlist("`spec'","regress","reghdfe","ivreghdfe","ivreg2") {
-            di as error "`spec' not supported"
-            exit
+    * Require clustering (at least at location level) if panel
+    if "`timevar'"!="" & "`cluster'"=="" {
+        di as error "Clustering required for panel case (at least at `id' level)"
+        exit
     }
-    scalar beta = _b[`x']
-    scalar se = _se[`x']
-    scalar N_obs = e(N)
-    scalar N_clust = e(N_clust)
-    cap drop __tmo_sample
-    gen byte __tmo_sample = e(sample)
-    * Extract clusters
-    local cluster `e(clustvar)'
-    
-    * Extract weights
-    if "`e(wexp)'"!="" {
-        local weightvar = subinstr("`e(wexp)'","=","",1)
-        local weightexp [`e(wtype)'`e(wexp)']
+
+    * Require absorb if (iv)reghdfe
+    if inlist("`spec'","reghdfe","ivreghdfe") & "`absorb_vars'"=="" {
+        di as error "absorb() required for `spec'"
+        exit
+    } 
+
+    * Assert idvar is unique (within timevar if panel)
+	if "`idvar'"!="" & "`timevar'"=="" {
+		gisid `idvar' if __tmo_sample
+	}
+	if "`idvar'"!="" & "`timevar'"!="" {
+		gisid `idvar' `timevar' if __tmo_sample
+	}
+
+    * Store number of locations and time periods
+    qui gdistinct `idvar' if __tmo_sample
+    local N = r(ndistinct)
+    scalar N = `r(ndistinct)'
+    mata: N = `N'
+    if "`timevar'"!="" {
+        qui gdistinct `timevar' if __tmo_sample
+        local T = r(ndistinct)
+        scalar T = r(ndistinct)
+        mata: T = `T'
     }
     else {
-        local weightvar
-        local weightexp
+        local T = 1
+        scalar T = 1
+        mata: T = 1
     }
-    
+
+    *** END OPTION CHECKS ***
 
 
     *****************
@@ -107,23 +175,7 @@ program define tmo, eclass
         local after_comma = regexr("`after_comma'", "(res|resi|resid|residu|residua|residual|residuals)\([^)]*\)", "")
         local after_comma = regexr("`after_comma'", "(res|resi|resid|residu|residua|residual|residuals)", "")
 
-
         * Remove saving FE options
-        local absorb_start = regexm("`cmd'", "(a|ab|abs|abso|absor|absorb)\(([^)]+)\)")
-        if !(`absorb_start') {
-            di as error "`spec' must include absorb option"
-            exit
-        }
-        else {
-            local absorb_vars "`=regexs(2)'"
-        }
-        local comma_start = strpos("`absorb_vars'",",")
-        if `comma_start'>0 {
-            local absorb_vars = substr("`absorb_vars'", 1, `comma_start'-1)
-        }
-        while regexm("`absorb_vars'", "[^ ]*=") {
-            local absorb_vars = regexr("`absorb_vars'", "[^ ]*=", "")
-        }
         local after_comma = regexr("`after_comma'", "(a|ab|abs|abso|absor|absorb)\([^)]*\)", "")
 
         local cmd `before_comma', absorb(`absorb_vars') `after_comma'
@@ -131,31 +183,11 @@ program define tmo, eclass
 
     *** END CLEAN CMD ***
 
-    
 
-    *** Require clustering (at least at location level) if panel
-    if "`timevar'"!="" & "`cluster'"=="" {
-        di as error "Clustering required for panel case (at least at `id' level)"
-        exit
-    }
+    ****************************
+    *** STORE ID-CLUSTER XW ****
+    ****************************
 
-
-    * Assert idvar is unique (within timevar if panel)
-	if "`idvar'"!="" & "`timevar'"=="" {
-		gisid `idvar' if __tmo_sample
-	}
-	if "`idvar'"!="" & "`timevar'"!="" {
-		gisid `idvar' `timevar' if __tmo_sample
-	}
-    qui hashsort `idvar' `timevar'
-
-    * Set plothistbinsize if set to default (10000 bins)
-    if `plothistbinsize'==-1 {
-        qui gdistinct `idvar' if __tmo_sample
-        local plothistbinsize = round(`r(ndistinct)'*(`r(ndistinct)'-1)/10000)
-    }
-
-    *** Store xw between id and clusters
     if "`cluster'"!="" & "`cluster'"!="`idvar'" {
         preserve
             qui keep if __tmo_sample
@@ -190,9 +222,15 @@ program define tmo, eclass
         restore
     }
 
-    *** Write command to calculate xtilde
-    if  regexm("`spec'","^(reg|regr|regre|regres|regress)$") | ///
-        inlist("`spec'","reghdfe") {
+    *** END STORE ID-CLUSTER XW ***
+
+
+
+    ****************************
+    *** WRITE CMD FOR XTILDE ***
+    ****************************
+
+    if  inlist("`spec'","regress","reghdfe") {
             local xtildecmd = subinstr("`cmd'"," `y' "," `x' ",1)
             local xtildecmd = subinstr("`xtildecmd'"," `x' "," ",1)
             if "`spec'"=="reghdfe" {
@@ -263,6 +301,10 @@ program define tmo, eclass
         local xtildecmd1 reg `endog' `instr' `controls' `nocons'
         local xtildecmd2 reg __tmo_xhat `controls' `nocons'
     }
+    
+    *** END WRITE CMD FOR XTILDE ***
+
+    
 
     ***************
     *** RUN TMO ***
@@ -270,23 +312,7 @@ program define tmo, eclass
     preserve
         qui keep if __tmo_sample
 
-        * Store number of locations and time periods
-        qui gdistinct `idvar'
-        local N = r(ndistinct)
-        scalar N = `r(ndistinct)'
-        mata: N = `N'
-        if "`timevar'"!="" {
-            qui gdistinct `timevar'
-            local T = r(ndistinct)
-            scalar T = r(ndistinct)
-            mata: T = `T'
-        }
-        else {
-            local T = 1
-            scalar T = 1
-            mata: T = 1
-        }
-
+        * Estimate __tmo_xtilde
         if  regexm("`spec'","^(reg|regr|regre|regres|regress)$") | ///
             inlist("`spec'","reghdfe") {
             qui `xtildecmd'
@@ -300,14 +326,14 @@ program define tmo, eclass
             drop __tmo_xhat
         }
 
-        ** Check __tmo_xtilde is correct
+        * Check __tmo_xtilde is correct
         qui reg `y' __tmo_xtilde `weightexp'
         if abs(beta-_b[__tmo_xtilde])>1e-5 {
             di as error "__tmo_xtilde is incorrect"
             exit
         }
 
-        *** Loop through auxiliary outcomes and store residuals, idvar, timevar, and cluster in Mata
+        * Loop through auxiliary outcomes and save residuals
         cap drop __tmo_resid*
 
         if  inlist("`spec'","regress","ivreg2") {
@@ -332,7 +358,7 @@ program define tmo, eclass
             local cmd_toloop `before_comma' `nocons'
 
             local ynum=1
-            foreach aux_y in `y' `d' {
+            foreach aux_y in `y' `ylist' {
                 local cmd_inloop = subinstr("`cmd_toloop'","`y'","`aux_y'",1)
                 qui `cmd_inloop'
                 qui predict __tmo_resid`ynum', resid
@@ -348,7 +374,7 @@ program define tmo, eclass
             }
 
             local ynum=1
-            foreach aux_y in `y' `d' {
+            foreach aux_y in `y' `ylist' {
                 local cmd_inloop = subinstr("`cmd_toloop'","`y'","`aux_y'",1)
                 qui `cmd_inloop' resid
                 qui predict __tmo_resid`ynum', resid
@@ -378,7 +404,7 @@ program define tmo, eclass
             local cmd_toloop `cmd_toloop' absorb(`absorb_vars_savefe')
 
             local ynum=1
-            foreach aux_y in `y' `d' {
+            foreach aux_y in `y' `ylist' {
                 local cmd_inloop = subinstr("`cmd_toloop'","`y'","`aux_y'",1)
                 cap drop __tmo_fe*
                 qui `cmd_inloop'
@@ -390,6 +416,7 @@ program define tmo, eclass
         }
         scalar D = `ynum'-1
 
+        * Calculate correlation in residuals and contribution to variance
         keep `idvar' `timevar' `weightvar' __tmo_xtilde __tmo_resid*
         qui hashsort `idvar' `timevar'
 
@@ -486,7 +513,7 @@ program define tmo, eclass
         load_data, nloc(`N') `cl1p' `cl2p' `savedyad' `savepath'
 
         * Compute degrees of freedom and threshold
-        dfqt, `plotq' `plothist' bin(`plothistbinsize') nloc(`N') `savepath'
+        dfqt, `plotq' `plothist' nbins(`plothistnbins') nloc(`N') `savepath'
         
         * Compute TMO SE
         est_tmo_se, orig_se(se) thres(thres)
@@ -501,34 +528,51 @@ program define tmo, eclass
         **********************
         
         clear
+        return clear
         ereturn clear
         
         if "`saveest'"!="" {
             tmo_save, `savepath'
         }
 
-        mat tmo_results = J(1,4,.)
+        mat tmo_results = J(1,6,.)
         mat rownames tmo_results = "`x'"
-        mat colnames tmo_results = "Coef" "TMO SE" "t" "P>|t|"
+        mat colnames tmo_results = "Coef" "TMO SE" "t" "P>|t|" "95% Conf" "Interval"
         mat tmo_results[1,1] = beta
         mat tmo_results[1,2] = tmo_se
         mat tmo_results[1,3] = beta/tmo_se
-        mat tmo_results[1,4] = 2*(1-normal(abs(beta/tmo_se)))
-        matlist tmo_results, border(all) cspec(o2& %12s | %9.3f o2 & %9.3f o2 & %6.2f o2 & %4.3f o2&) rspec(&-&)
+        mat tmo_results[1,4] = 2*ttail(df_r, abs(beta/tmo_se))
+        scalar lb = beta - invttail(df_r,0.025)*tmo_se
+        scalar ub = beta + invttail(df_r,0.075)*tmo_se
+        mat tmo_results[1,5] = lb
+        mat tmo_results[1,6] = ub
+        matlist tmo_results, border(all) cspec(o2& %20s | %9.3f o2 & %9.3f o2 & %6.2f o2 & %4.3f o2 & %9.3f o2 & %9.3f o2 &) rspec(&-&)
 
-        ereturn scalar beta = beta
-        ereturn scalar orig_se = se
-        ereturn scalar tmo_se = tmo_se
-        ereturn scalar offdP = offdP
-        ereturn scalar offdPnocl = offdPnocl
-        ereturn scalar T = T
-        ereturn scalar N = N_obs
-        ereturn scalar N_loc = N
-        ereturn scalar N_clust = N_clust
-        ereturn scalar D = D
-        ereturn scalar dof = df
-        ereturn scalar delta_hat = thres
-        ereturn scalar finite_sample_dof = dof_adj
+        mat tmo_details = J(5,1,.)
+        mat rowname tmo_details = "Optimal threshold" "% of correlations >= threshold" "% >= threshold (excl. clusters)" "# outcomes" "Degrees of freedom" 
+        mat tmo_details[1,1] = thres
+        mat tmo_details[2,1] = offdP*100
+        mat tmo_details[3,1] = offdPnocl*100
+        mat tmo_details[4,1] = D
+        mat tmo_details[5,1] = df
+        
+        matlist tmo_details, cspec(& %31s | %9.3f &) rspec(& & & & - & &) coleqonly
+
+        return scalar beta = beta
+        return scalar orig_se = se
+        return scalar tmo_se = tmo_se
+        return scalar lb = lb
+        return scalar ub = ub
+        return scalar threshold = thres
+        return scalar pct_ge_thres = offdP*100
+        return scalar pct_ge_thres_nocl = offdPnocl*100
+        return scalar T = T
+        return scalar N = N_obs
+        return scalar N_loc = N
+        return scalar N_clust = N_clust
+        return scalar N_outcomes = D
+        return scalar dof = df
+        return scalar finite_sample_dof = dof_adj
     restore
 end
 
@@ -627,7 +671,7 @@ mata
     }
 end
 
-* Function for computing contribution to SE for each pair of locations in panel case
+* Functions for computing contribution to SE for each pair of locations in panel case
 cap program drop sandwich_panel
 program define sandwich_panel,
     syntax, rows(int) nloc(int) ntime(int) [NOIsily]
@@ -644,7 +688,7 @@ program define sandwich_panel,
 		local end_i = min(`i'+`itersize'-1, `nloc')
         
         if "`noisily'"!="" {
-            local donepct = string(`start_i'*100/`nloc', "%3.0f")
+            local donepct = string(`start_i'*100/`nloc', "%5.2f")
             di "Computed `donepct'% of sandwich"
         }
         
@@ -788,7 +832,7 @@ end
 * Function to compute degrees of freedom and optimal threshold
 cap program drop dfqt
 program define dfqt
-    syntax, [plotq] [plothist] bin(int) nloc(int) [filesuffix(str)]
+    syntax, [plotq] [plothist] nbins(int) nloc(int) [filesuffix(str)]
 
     cap drop offdiag
     qui gen byte offdiag = !missing(corr) & id1!=id2 & abs(corr)!=1
@@ -834,13 +878,12 @@ program define dfqt
     }
 
     if "`plothist'"!="" {
-        local bins = round(((`nloc'^2 - `nloc')/2)/`bin')
         qui sum corr_fisher if offdiag
-        local binwidth = (`r(max)'-`r(min)')/`bins'
+        local binwidth = (`r(max)'-`r(min)')/`nbins'
         qui gen bin_corr = floor((corr_fisher-`r(min)')/`binwidth') if offdiag
         qui gen bin_cent = bin_corr*`binwidth' + `binwidth'/2 + `r(min)'
         qui sum bin_corr if offdiag
-        assert abs(`r(max)'-`bins')<=1
+        assert abs(`r(max)'-`nbins')<=1
         qui hashsort bin_corr corr_fisher
         qui by bin_corr: gen binN=_N if offdiag
         qui gen bin_dens = binN/(_N*`binwidth') if offdiag
@@ -925,9 +968,9 @@ program define tmo_over_thres,
     local row=1
     forv thr=0(0.01)1.01 {
         if "`noisily'"!="" {
-            if mod(`row',10)==1 {
+            if mod(`row',20)==1 {
                 local thr_str = string(`thr',"%03.2f")
-                di "Doing plotse threshold=`thr_str'"
+                di "Calculating TMO SE over threshold at `thr_str'"
             }
         }
 
@@ -991,8 +1034,8 @@ program define tmo_save,
 
         set obs 1
 
-        foreach var in beta orig_se tmo_se offdP offdPnocl T N N_loc N_clust D dof delta_hat finite_sample_dof {
-            gen `var' = e(`var')
+        foreach var in beta orig_se tmo_se lb ub pct_ge_thres pct_ge_thres_nocl T N N_loc N_clust N_outcomes dof threshold finite_sample_dof {
+            gen `var' = r(`var')
         }
 
         qui compress

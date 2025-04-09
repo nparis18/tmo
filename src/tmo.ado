@@ -232,11 +232,11 @@ program define tmo, rclass
     ****************************
 
     if  inlist("`spec'","regress","reghdfe") {
-            local xtildecmd = subinstr("`cmd'"," `y' "," `x' ",1)
-            local xtildecmd = subinstr("`xtildecmd'"," `x' "," ",1)
-            if "`spec'"=="reghdfe" {
-                local xtildecmd `xtildecmd' resid
-            }
+        local xtildecmd = subinstr("`cmd'"," `y' "," `x' ",1)
+        local xtildecmd = subinstr("`xtildecmd'"," `x' "," ",2)
+        if "`spec'"=="reghdfe" {
+            local xtildecmd `xtildecmd' resid
+        }
     }
     if "`spec'"=="ivreghdfe" {        
         * Create xtildecmd using reghdfe
@@ -314,8 +314,7 @@ program define tmo, rclass
         qui keep if __tmo_sample
 
         * Estimate __tmo_xtilde
-        if  regexm("`spec'","^(reg|regr|regre|regres|regress)$") | ///
-            inlist("`spec'","reghdfe") {
+        if  inlist("`spec'","regress","reghdfe") {
             qui `xtildecmd'
             qui predict __tmo_xtilde, resid
         }

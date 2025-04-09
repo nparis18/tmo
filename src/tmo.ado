@@ -90,7 +90,8 @@ program define tmo, rclass
     local done ""
     local dups ""
     foreach var in `y' `ylist' {
-        if strpos("`done'","`var'")>0 {
+        confirm var `var', exact
+        if strpos("`done'"," `var' ")>0 {
             local dups "`dups' `var'"
         }
         local done "`done' `var'"

@@ -139,15 +139,26 @@ locations{p_end}
 calculation{p_end}
 {p2colreset}{...}
 
+{marker dependencies}{...}
+{title:Dependencies}
+
+{pstd}
+{cmd:tmo} requires the {cmd:{help gtools}} package. Please run {stata ssc install gtools} to install.{p_end}
+
+{pstd}
+{cmd:tmo} has been tested on the following versions of {help reghdfe}, 
+{help ivreghdfe}, and {help ivreg2}. Earlier versions of these packages may run into
+errors.{p_end}
+{phang}- {help reghdfe} version 6.12.3 {p_end}
+{phang}- {help ivreghdfe} version 1.1.3 {p_end}
+{phang}- {help ivreg2} version 4.1.12 {p_end}
+
 {marker disclaimer}{...}
 {title:Disclaimer}
 
 {pstd}
 This package is in beta/testing mode. Please use cautiously and feel free to 
 report any errors to wjnkim@stanford.edu.
-
-{pstd}
-{cmd:tmo} requires the {cmd:{help gtools}} package. Please run {stata ssc install gtools} to install.
 
 {marker references}{...}
 {title:References}

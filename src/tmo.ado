@@ -569,11 +569,11 @@ program define tmo, rclass
         return scalar N_outcomes = D
         return scalar dof = df
         return scalar finite_sample_dof = dof_adj
-
-        if "`saveest'"!="" {
-            tmo_save, `savepath'
-        }
     restore
+
+    if "`saveest'"!="" {
+        tmo_save, `savepath'
+    }
 end
 
 ***********************
@@ -1034,9 +1034,21 @@ program define tmo_save,
 
         set obs 1
 
-        foreach var in beta orig_se tmo_se lb ub pct_ge_thres pct_ge_thres_nocl T N N_loc N_clust N_outcomes dof threshold finite_sample_dof {
-            gen `var' = r(`var')
-        }
+        gen beta = beta
+        gen orig_se = se
+        gen tmo_se = tmo_se
+        gen lb = lb
+        gen ub = ub
+        gen threshold = thres
+        gen pct_ge_thres = offdP*100
+        gen pct_ge_thres_nocl = offdPnocl*100
+        gen T = T
+        gen N = N_obs
+        gen N_loc = N
+        gen N_clust = N_clust
+        gen N_outcomes = D
+        gen dof = df
+        gen finite_sample_dof = dof_adj
 
         qui compress
         save "`filesuffix'_est.dta", replace

@@ -563,10 +563,10 @@ program define tmo, rclass
         return scalar pct_ge_thres = offdP*100
         return scalar pct_ge_thres_nocl = offdPnocl*100
         return scalar T = T
-        return scalar N = N_obs
         return scalar N_loc = N
         return scalar N_clust = N_clust
         return scalar N_outcomes = D
+        return scalar N = N_obs
         return scalar dof = df
         return scalar finite_sample_dof = dof_adj
     restore
@@ -1043,8 +1043,8 @@ program define tmo_save,
         gen pct_ge_thres = offdP*100
         gen pct_ge_thres_nocl = offdPnocl*100
         gen T = T
-        gen N = N_obs
         gen N_loc = N
+        gen N = N_obs
         gen N_clust = N_clust
         gen N_outcomes = D
         gen dof = df

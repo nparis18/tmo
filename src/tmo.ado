@@ -531,10 +531,6 @@ program define tmo, rclass
         return clear
         ereturn clear
         
-        if "`saveest'"!="" {
-            tmo_save, `savepath'
-        }
-
         mat tmo_results = J(1,6,.)
         mat rownames tmo_results = "`x'"
         mat colnames tmo_results = "Coef" "TMO SE" "t" "P>|t|" "95% Conf" "Interval"
@@ -573,6 +569,10 @@ program define tmo, rclass
         return scalar N_outcomes = D
         return scalar dof = df
         return scalar finite_sample_dof = dof_adj
+
+        if "`saveest'"!="" {
+            tmo_save, `savepath'
+        }
     restore
 end
 

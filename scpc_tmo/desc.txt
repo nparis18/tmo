@@ -1,2 +1,2 @@
-scpc package is from https://github.com/ukmueller/SCPC
-Added one line of code to store SCPC critical value into Stata global macro for tmo package
+This scpc package (version 1.0.0) is from https://github.com/ukmueller/SCPC
+One line of code has been added to scpc.ado to store the SCPC critical value into a Stata global macro to use in the tmo package

@@ -1,4 +1,4 @@
-*! version 0.9.0b1 2025-04-08
+*! version 0.9.0b2 2025-04-14
 
 capture program drop tmo
 program define tmo, rclass
@@ -7,6 +7,8 @@ program define tmo, rclass
     syntax, ///
         cmd(str) x(varname) ylist(varlist) Idvar(varname) ///
         [Timevar(varname)] ///
+        [LONgitude(varname)] [LATitude(varname)] [DISTTHREShold(real 0)] [miles] ///
+        [THREShold(real -9)] [thresholdoff] ///
         [MISSlimit(real 0.1)] ///
         [FILEsuffix(str)] ///
         [savedyad] ///
@@ -144,6 +146,33 @@ program define tmo, rclass
 		gisid `idvar' `timevar' if __tmo_sample
 	}
 
+    * Assert longitude and latitude provided if distthreshold!=0
+    if ("`longitude'"=="" | "`latitude'"=="") & `distthreshold'!=0 {
+        di as error "longitude() and latitude() required for distthreshold() option"
+        exit
+    }
+
+    * Assert distthreshold>0 if provided
+    if `distthreshold'<0 {
+        di as error "distthreshold() must be greater than 0"
+        exit
+    }
+
+    * Assert geodist package installed if distthreshold>0
+    if `distthreshold'>0 {
+        cap which geodist
+        if _rc {
+            di as error "distthreshold() requires geodist package -- please run: ssc install geodist"
+            exit
+        }
+    }
+
+    * Assert custom threshold is between 0 and 1 if provided
+    if `threshold'!=-9 & (`threshold'<0 | `threshold'>1) {
+        di as error "Custom threshold() must be between 0 and 1"
+        exit
+    }
+
     * Store number of locations and time periods
     qui gdistinct `idvar' if __tmo_sample
     local N = r(ndistinct)
@@ -224,6 +253,64 @@ program define tmo, rclass
     }
 
     *** END STORE ID-CLUSTER XW ***
+
+
+
+    *********************************
+    *** STORE LOCATION DISTANCES ****
+    *********************************
+
+    if "`longitude'"!="" & "`latitude'"!="" {
+        preserve
+            qui keep if __tmo_sample
+            keep `idvar' `longitude' `latitude'
+
+            qui gduplicates drop
+            cap gisid `idvar'
+
+            if _rc {
+                di as error "`longitude' and/or `latitude' not constant within some `idvar'"
+                exit
+            }
+
+            gen n=_n
+		
+            rename `latitude' lat2
+            rename `longitude' lon2
+            rename `idvar' id2
+            qui compress
+
+            tempfile dist
+            qui save `dist'
+            
+            rename id2 id1
+            rename lat2 lat1
+            rename lon2 lon1	
+            
+            qui sum n
+            qui expand `r(max)'
+            drop n
+            
+            qui hashsort id1
+            by id1: gen n=_n
+            
+            qui merge m:1 n using `dist', assert(3) nogen
+            drop n
+
+            qui keep if id1>=id2 // keep only lower triangular
+            
+            qui geodist lat1 lon1 lat2 lon2, gen(dist) `miles' sphere
+            qui replace dist=0 if id1==id2
+
+            keep id1 id2 dist
+
+            qui compress   
+            tempfile dist
+            qui save `dist'
+        restore
+    }
+
+    *** END STORE LOCATION DISTANCES ***
 
 
 
@@ -510,17 +597,23 @@ program define tmo, rclass
         else {
             local savepath
         }
-        load_data, nloc(`N') `cl1p' `cl2p' `savedyad' `savepath'
+        if "`longitude'"!="" & "`latitude'"!="" {
+            local distp distpath(`dist')
+        }
+        else {
+            local distp
+        }
+        load_data, nloc(`N') `cl1p' `cl2p' `distp' `savedyad' `savepath'
 
         * Compute degrees of freedom and threshold
         dfqt, `plotq' `plothist' nbins(`plothistnbins') nloc(`N') `savepath'
-        
+
         * Compute TMO SE
-        est_tmo_se, orig_se(se) thres(thres)
+        est_tmo_se, dist_cutoff(`distthreshold') custom_thres(`threshold') `thresholdoff'
 
         * Plot TMO SE over threshold 
         if "`plotse'"!="" {
-            tmo_over_thres, `savepath' `saveplotseest' noi
+            tmo_over_thres, `savepath' `saveplotseest' noi dist_cutoff(`distthreshold')
         }
         
         **********************
@@ -545,14 +638,14 @@ program define tmo, rclass
         matlist tmo_results, border(all) cspec(o2& %20s | %9.3f o2 & %9.3f o2 & %6.2f o2 & %4.3f o2 & %9.3f o2 & %9.3f o2 &) rspec(&-&)
 
         mat tmo_details = J(5,1,.)
-        mat rowname tmo_details = "Optimal threshold" "% of correlations >= threshold" "% >= threshold (excl. clusters)" "# outcomes" "Degrees of freedom" 
+        mat rowname tmo_details = "Optimal threshold" "% of correlations >= threshold" "% >= threshold (excl. clusters/Conley)" "# outcomes" "Degrees of freedom" 
         mat tmo_details[1,1] = thres
         mat tmo_details[2,1] = offdP*100
         mat tmo_details[3,1] = offdPnocl*100
         mat tmo_details[4,1] = D
         mat tmo_details[5,1] = df
         
-        matlist tmo_details, cspec(& %31s | %9.3f &) rspec(& & & & - & &) coleqonly
+        matlist tmo_details, cspec(& %38s | %9.3f &) rspec(& & & & - & &) coleqonly
 
         return scalar beta = beta
         return scalar orig_se = se
@@ -765,7 +858,7 @@ end
 * Function to load Mata data into Stata
 cap program drop load_data
 program define load_data,
-    syntax, nloc(int) [cl1path(str)] [cl2path(str)] [savedyad] [filesuffix(str)]
+    syntax, nloc(int) [cl1path(str)] [cl2path(str)] [distpath(str)] [savedyad] [filesuffix(str)]
 
     clear
 
@@ -812,6 +905,10 @@ program define load_data,
             local var2 = subinstr("`var1'","_cl1_","_cl2_",1)
             qui replace same_cl = 1 if `var1'==`var2'
         }
+    }
+
+    if "`distpath'"!="" {
+        qui merge 1:1 id1 id2 using `distpath', assert(3) nogen
     }
     
     * Fisher-transform correlation
@@ -913,7 +1010,22 @@ end
 
 * Function to estimate TMO SE
 cap program drop est_tmo_se
-program define est_tmo_se
+program define est_tmo_se,
+    syntax, [dist_cutoff(real 0)] [custom_thres(real -9)] [thresholdoff] 
+
+    if `custom_thres'!=-9 {
+        scalar thres = `custom_thres'
+        scalar fthres = 0.5 * ln((1+thres)/(1-thres))
+        scalar df = .
+        scalar sd = .
+    }
+
+    if "`thresholdoff'"!="" {
+        scalar thres = .
+        scalar fthres = .
+        scalar df = .
+        scalar sd = .
+    }
 
     cap confirm var same_cl
     if !_rc {
@@ -921,6 +1033,24 @@ program define est_tmo_se
     }
     else {
         local orig_cond id1==id2
+    }
+
+    cap confirm var same_cl
+    if !_rc {
+        if `dist_cutoff'>0 {
+            local keep_cond (same_cl | dist<=`dist_cutoff')
+        }
+        else {
+            local keep_cond same_cl
+        }
+    }
+    else {
+        if `dist_cutoff'>0 {
+            local keep_cond (id1==id2 | dist<=`dist_cutoff')
+        }
+        else {
+            local keep_cond id1==id2
+        }
     }
 
     * Back out finite sample degrees of freedom adjustment from original SE
@@ -934,31 +1064,43 @@ program define est_tmo_se
     scalar offdNnocl = r(N)
 
     * TMO SE
-    qui sum xxresxx if ((abs(corr)>=thres) & !missing(corr)) | `orig_cond'
+    qui sum xxresxx if ((abs(corr)>=thres) & !missing(corr)) | `keep_cond'
 	scalar tmo_se = sqrt(r(sum)*dof_adj)
 
-    * Proportion off-diag included in SE calculation (including both clustering and TMO)
-	qui count if (((abs(corr)>=thres) & !missing(corr)) | `orig_cond') & id1!=id2
+    * Proportion off-diag included in SE calculation (including both clustering, Conley, and TMO)
+	qui count if (((abs(corr)>=thres) & !missing(corr)) | `keep_cond') & id1!=id2
 	scalar offdP = r(N)/offdN
 
-    * Proportion off-diag over threshold outside clusters
-	qui count if (abs(corr)>=thres) & !missing(corr) & !(`orig_cond')
+    * Proportion off-diag over threshold outside clusters or Conley
+	qui count if (abs(corr)>=thres) & !missing(corr) & !(`keep_cond')
 	scalar offdPnocl = r(N)/offdNnocl
 end
 
 * Function to plot TMO SE over thresholds
 cap program drop tmo_over_thres
 program define tmo_over_thres,
-    syntax, filesuffix(str) [saveplotseest] [NOIsily]
+    syntax, filesuffix(str) [saveplotseest] [NOIsily] [dist_cutoff(real 0)]
 
     cap confirm var same_cl
     if !_rc {
-        local orig_cond same_cl
-        local subtitle2 `" "(excluding within-cluster correlations)" "'
+        if `dist_cutoff'>0 {
+            local keep_cond (same_cl | dist<=`dist_cutoff')
+            local subtitle2 `" "(excluding within-cluster and -`dist_cutoff' correlations)" "'
+        }
+        else {
+            local keep_cond same_cl
+            local subtitle2 `" "(excluding within-cluster correlations)" "'
+        }
     }
     else {
-        local orig_cond id1==id2
-        local subtitle2
+        if `dist_cutoff'>0 {
+            local keep_cond (id1==id2 | dist<=`dist_cutoff')
+            local subtitle2 `" "(excluding within-`dist_cutoff' correlations)" "'
+        }
+        else {
+            local keep_cond id1==id2
+            local subtitle2
+        }
     }
 
     * Initialize matrix to store results
@@ -975,11 +1117,11 @@ program define tmo_over_thres,
         }
 
         mat tmo_over_thres[`row',1]=`thr'
-		qui sum xxresxx if ((abs(corr)>=`thr') & !missing(corr)) | `orig_cond'
+		qui sum xxresxx if ((abs(corr)>=`thr') & !missing(corr)) | `keep_cond'
 		mat tmo_over_thres[`row',2]=sqrt(`r(sum)'*dof_adj)
 		qui count if (abs(corr)>=`thr') & !missing(corr) & !(id1==id2)
 		mat tmo_over_thres[`row',3]=`r(N)'/offdN
-		qui count if (abs(corr)>=`thr') & !missing(corr) & !(`orig_cond')
+		qui count if (abs(corr)>=`thr') & !missing(corr) & !(`keep_cond')
 		mat tmo_over_thres[`row',4]=`r(N)'/offdNnocl
 
         local ++row

@@ -15,7 +15,8 @@ program define tmo, rclass
         [plotq] ///
         [plothist] [plothistnbins(int 10000)] ///
         [plotse] [saveplotseest] ///
-        [saveest]
+        [saveest] ///
+        [scpc_cmd(str)] [scpc_uncond]
    
     ********************************
     *** RUN AND SAVE CMD OPTIONS ***
@@ -57,6 +58,66 @@ program define tmo, rclass
     }
 
     *** END RUN AND SAVE CMD OPTIONS ***
+
+
+
+    *************************
+    *** RUN SCPC IF GIVEN ***
+    *************************
+    
+    if "`scpc_cmd'"!="" {
+        * Install edited version of scpc that stores critical values
+        qui net install scpc, from("https://raw.githubusercontent.com/wjnkim/tmo/master/scpc_tmo") replace
+
+        preserve
+            qui keep if !missing(`longitude') & !missing(`latitude') & __tmo_sample
+
+            rename `latitude' s_1
+            rename `longitude' s_2 
+            
+            qui hashsort `idvar'
+            qui `scpc_cmd'
+            qui keep if e(sample)
+            if "`scpc_uncond'"=="" {
+                qui scpc, k(1) latlong
+            }
+            else {
+                qui scpc, k(1) latlong uncond
+            }
+            scalar scpc_se=e(scpcstats)[1,2]
+        
+            mata: id_scpc = st_data(.,"`idvar'")
+            clear
+
+            mata: id_scpc_uniq = uniqrows(id_scpc)
+            mata: Wfin_sum_vec = vec(Wfin[.,2::cols(Wfin)]*Wfin[.,2::cols(Wfin)]'):/(cols(Wfin)-1)
+            mata: id_scpc_rowvec = vec(J(1,rows(Wfin),id_scpc_uniq))
+            mata: id_scpc_colvec = vec(J(rows(Wfin),1,id_scpc_uniq'))
+                
+            mata: st_local("scpc_obsN",strofreal(rows(Wfin_sum_vec),"%50.0f"))
+
+            gen id1=.
+            gen id2=.
+            gen Wfin=.
+                
+            qui set obs `scpc_obsN'
+            
+            mata: st_store(.,.,(id_scpc_rowvec,id_scpc_colvec,Wfin_sum_vec))
+            
+            qui keep if id1>=id2 // keep only lower triangular
+
+            qui compress
+            tempfile Wfin
+            qui save `Wfin'
+        restore
+    }
+    else {
+        global scpc_cv = .
+    }
+
+    *** END RUN SCPC IF GIVEN ***
+
+
 
     *********************
     *** OPTION CHECKS ***
@@ -152,6 +213,24 @@ program define tmo, rclass
         exit
     }
 
+    * Assert longitude and latitude provided if scpc
+    if ("`longitude'"=="" | "`latitude'"=="") & "`scpc_cmd'"!="" {
+        di as error "longitude() and latitude() required for scpc_cmd() option"
+        exit
+    }
+
+    * Assert scpc_cmd() if scpc_uncond option
+    if "`scpc_cmd'"=="" & "`scpc_uncond'"!="" {
+        di as error "scpc_cmd() required for scpc_uncond() option"
+        exit
+    }
+
+    * Assert no weights if scpc
+    if "`scpc_cmd'"!="" & "`weightvar'"!="" {
+        di as error "weights not allowed for scpc"
+        exit
+    }
+
     * Assert distthreshold>0 if provided
     if `distthreshold'<0 {
         di as error "distthreshold() must be greater than 0"
@@ -193,6 +272,7 @@ program define tmo, rclass
     *** END OPTION CHECKS ***
 
 
+
     *****************
     *** CLEAN CMD ***
     *****************
@@ -212,6 +292,7 @@ program define tmo, rclass
     }
 
     *** END CLEAN CMD ***
+
 
 
     ****************************
@@ -582,6 +663,33 @@ program define tmo, rclass
         * Normalize contribution to variance
         mata: resxtildenorm(ResXtildeVec, xtilde, xtilde_wgt)
 
+        * Calculate part of contribution to scpc SE if specified
+        if "`scpc_cmd'"!="" {
+            mata: y_scpc = (sqrt(N)/(xtilde'*xtilde)):*Res1:*xtilde	
+            mata: st_local("scpc_obsN",strofreal(rows(id),"%50.0f"))
+            
+            clear
+            gen id1=.
+            gen y_scpc1=.
+            
+            qui set obs `scpc_obsN'
+            
+            mata: st_store(.,.,(id,y_scpc))
+            
+            cap gisid id1
+            if _rc gcollapse (sum) y_scpc1, by(id1)
+
+            qui compress
+            tempfile scpc1
+            qui save `scpc1'
+            
+            rename id1 id2
+            rename y_scpc1 y_scpc2
+            
+            tempfile scpc2
+            qui save `scpc2'
+        }
+
         * Bring Mata data into Stata
         if "`cluster'"!="" & "`cluster'"!="`idvar'" {
             local cl1p cl1path(`cl1')
@@ -603,7 +711,17 @@ program define tmo, rclass
         else {
             local distp
         }
-        load_data, nloc(`N') `cl1p' `cl2p' `distp' `savedyad' `savepath'
+        if "`scpc_cmd'"!="" {
+            local scpcw scpcwfin(`Wfin')
+            local scpcy1 scpcy1path(`scpc1')
+            local scpcy2 scpcy2path(`scpc2')
+        }
+        else {
+            local scpcw
+            local scpcy1
+            local scpcy2
+        }
+        load_data, nloc(`N') `cl1p' `cl2p' `distp' `savedyad' `savepath' `scpcw' `scpcy1' `scpcy2'
 
         * Compute degrees of freedom and threshold
         dfqt, `plotq' `plothist' nbins(`plothistnbins') nloc(`N') `savepath'
@@ -616,6 +734,8 @@ program define tmo, rclass
             tmo_over_thres, `savepath' `saveplotseest' noi dist_cutoff(`distthreshold')
         }
         
+
+
         **********************
         *** OUTPUT RESULTS ***
         **********************
@@ -662,12 +782,16 @@ program define tmo, rclass
         return scalar N = N_obs
         return scalar dof = df
         return scalar finite_sample_dof = dof_adj
+        return scalar df_r = df_r
+        return scalar scpc_cv = ${scpc_cv}
     restore
 
     if "`saveest'"!="" {
         tmo_save, `savepath'
     }
 end
+
+
 
 ***********************
 *** HELPER COMMANDS ***
@@ -858,7 +982,7 @@ end
 * Function to load Mata data into Stata
 cap program drop load_data
 program define load_data,
-    syntax, nloc(int) [cl1path(str)] [cl2path(str)] [distpath(str)] [savedyad] [filesuffix(str)]
+    syntax, nloc(int) [cl1path(str)] [cl2path(str)] [distpath(str)] [savedyad] [filesuffix(str)] [scpcwfin(str)] [scpcy1path(str)] [scpcy2path(str)]
 
     clear
 
@@ -909,6 +1033,13 @@ program define load_data,
 
     if "`distpath'"!="" {
         qui merge 1:1 id1 id2 using `distpath', assert(3) nogen
+    }
+
+    if "`scpcwfin'"!="" {
+        qui merge 1:1 id1 id2 using `scpcwfin', assert(1 3) nogen
+        qui merge m:1 id1 using `scpcy1path', assert(1 3) nogen
+        qui merge m:1 id2 using `scpcy2path', assert(1 3) nogen
+        qui gen ryyr = (Wfin*y_scpc1*y_scpc2)*(1 + (id1!=id2))
     }
     
     * Fisher-transform correlation
@@ -1011,7 +1142,7 @@ end
 * Function to estimate TMO SE
 cap program drop est_tmo_se
 program define est_tmo_se,
-    syntax, [dist_cutoff(real 0)] [custom_thres(real -9)] [thresholdoff] 
+    syntax, [dist_cutoff(real 0)] [custom_thres(real -9)] [thresholdoff] [`scpc_uncond']
 
     if `custom_thres'!=-9 {
         scalar thres = `custom_thres'
@@ -1029,10 +1160,10 @@ program define est_tmo_se,
 
     cap confirm var same_cl
     if !_rc {
-        local orig_cond same_cl
+        local orig_cond (same_cl)
     }
     else {
-        local orig_cond id1==id2
+        local orig_cond (id1==id2)
     }
 
     cap confirm var same_cl
@@ -1041,7 +1172,7 @@ program define est_tmo_se,
             local keep_cond (same_cl | dist<=`dist_cutoff')
         }
         else {
-            local keep_cond same_cl
+            local keep_cond (same_cl)
         }
     }
     else {
@@ -1049,30 +1180,56 @@ program define est_tmo_se,
             local keep_cond (id1==id2 | dist<=`dist_cutoff')
         }
         else {
-            local keep_cond id1==id2
+            local keep_cond (id1==id2)
         }
+    }
+
+    * For SCPC option
+    cap confirm var Wfin
+    if !_rc {
+        local scpc = 1
+        * Check SCPC SE (might not equal if uncond option or if missing some locations due to missing coordinates)
+        qui count if missing(ryyr)
+        if r(N)==0 & "`scpc_uncond'"=="" {
+            qui sum ryyr
+            if abs(scpc_se - sqrt(r(sum)))>1e-5 {
+                di as error "SCPC SE does not match"
+                exit
+            }
+        }
+    }
+    else {
+        local scpc = 0
     }
 
     * Back out finite sample degrees of freedom adjustment from original SE
     qui sum xxresxx if `orig_cond'
     scalar dof_adj = se^2/r(sum)
 
+    * TMO SE
+    qui sum xxresxx if ((abs(corr)>=thres) & !missing(corr)) | `keep_cond'
+    local xxresxx_sum = r(sum)
+    if `scpc'==1 {
+        qui sum ryyr if (abs(corr)<thres | missing(corr)) & !`keep_cond'
+        local ryyr_sum = r(sum)
+    }
+    else {
+        local ryyr_sum = 0
+    }
+	scalar tmo_se = sqrt((`xxresxx_sum'+`ryyr_sum')*dof_adj)
+
     * Store no. off-diag
     qui count if id1!=id2
     scalar offdN = r(N)
-    qui count if !(`orig_cond')
+    qui count if !`orig_cond'
     scalar offdNnocl = r(N)
-
-    * TMO SE
-    qui sum xxresxx if ((abs(corr)>=thres) & !missing(corr)) | `keep_cond'
-	scalar tmo_se = sqrt(r(sum)*dof_adj)
 
     * Proportion off-diag included in SE calculation (including both clustering, Conley, and TMO)
 	qui count if (((abs(corr)>=thres) & !missing(corr)) | `keep_cond') & id1!=id2
 	scalar offdP = r(N)/offdN
 
     * Proportion off-diag over threshold outside clusters or Conley
-	qui count if (abs(corr)>=thres) & !missing(corr) & !(`keep_cond')
+	qui count if (abs(corr)>=thres) & !missing(corr) & !`keep_cond'
 	scalar offdPnocl = r(N)/offdNnocl
 end
 
@@ -1088,7 +1245,7 @@ program define tmo_over_thres,
             local subtitle2 `" "(excluding within-cluster and -`dist_cutoff' correlations)" "'
         }
         else {
-            local keep_cond same_cl
+            local keep_cond (same_cl)
             local subtitle2 `" "(excluding within-cluster correlations)" "'
         }
     }
@@ -1098,9 +1255,17 @@ program define tmo_over_thres,
             local subtitle2 `" "(excluding within-`dist_cutoff' correlations)" "'
         }
         else {
-            local keep_cond id1==id2
+            local keep_cond (id1==id2)
             local subtitle2
         }
+    }
+
+    cap confirm var Wfin
+    if !_rc {
+        local scpc = 1
+    }
+    else {
+        local scpc = 0 
     }
 
     * Initialize matrix to store results
@@ -1118,11 +1283,19 @@ program define tmo_over_thres,
 
         mat tmo_over_thres[`row',1]=`thr'
 		qui sum xxresxx if ((abs(corr)>=`thr') & !missing(corr)) | `keep_cond'
-		mat tmo_over_thres[`row',2]=sqrt(`r(sum)'*dof_adj)
+        local xxresxx_sum = r(sum)
+        if `scpc'==1 {
+            qui sum ryyr if (abs(corr)<thres | missing(corr)) & !`keep_cond'
+            local ryyr_sum = r(sum)
+        }
+        else {
+            local ryyr_sum = 0
+        }    
+		mat tmo_over_thres[`row',2]=sqrt((`xxresxx_sum'+`ryyr_sum')*dof_adj)
 		qui count if (abs(corr)>=`thr') & !missing(corr) & !(id1==id2)
-		mat tmo_over_thres[`row',3]=`r(N)'/offdN
+		mat tmo_over_thres[`row',3]=r(N)/offdN
 		qui count if (abs(corr)>=`thr') & !missing(corr) & !(`keep_cond')
-		mat tmo_over_thres[`row',4]=`r(N)'/offdNnocl
+		mat tmo_over_thres[`row',4]=r(N)/offdNnocl
 
         local ++row
     }
@@ -1176,21 +1349,23 @@ program define tmo_save,
 
         set obs 1
 
-        gen beta = beta
-        gen orig_se = se
-        gen tmo_se = tmo_se
-        gen lb = lb
-        gen ub = ub
-        gen threshold = thres
-        gen pct_ge_thres = offdP*100
-        gen pct_ge_thres_nocl = offdPnocl*100
-        gen T = T
-        gen N_loc = N
-        gen N = N_obs
-        gen N_clust = N_clust
-        gen N_outcomes = D
-        gen dof = df
-        gen finite_sample_dof = dof_adj
+        qui gen beta = beta
+        qui gen orig_se = se
+        qui gen tmo_se = tmo_se
+        qui gen lb = lb
+        qui gen ub = ub
+        qui gen threshold = thres
+        qui gen pct_ge_thres = offdP*100
+        qui gen pct_ge_thres_nocl = offdPnocl*100
+        qui gen T = T
+        qui gen N_loc = N
+        qui gen N = N_obs
+        qui gen N_clust = N_clust
+        qui gen N_outcomes = D
+        qui gen dof = df
+        qui gen finite_sample_dof = dof_adj
+        qui gen df_r = df_r
+        qui gen scpc_cv = ${scpc_cv}
 
         qui compress
         save "`filesuffix'_est.dta", replace

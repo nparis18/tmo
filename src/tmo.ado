@@ -11,7 +11,7 @@ program define tmo, rclass
         [THREShold(real -9)] [thresholdoff] ///
         [MISSlimit(real 0.1)] ///
         [FILEsuffix(str)] ///
-        [savedyad] ///
+        [savedyad] [load(str)] ///
         [plotq] ///
         [plothist] [plothistnbins(int 10000)] ///
         [plotse] [saveplotseest] ///
@@ -479,249 +479,264 @@ program define tmo, rclass
     *** RUN TMO ***
     ***************
     preserve
-        qui keep if __tmo_sample
+        if "`load'"=="" { // if dyad data already exists, can load and skip this part (programmer option)
+            qui keep if __tmo_sample
 
-        * Estimate __tmo_xtilde
-        if  inlist("`spec'","regress","reghdfe") {
-            qui `xtildecmd'
-            qui predict __tmo_xtilde, resid
-        }
-        if inlist("`spec'","ivreghdfe","ivreg2") {
-            qui `xtildecmd1'
-            qui predict __tmo_xhat
-            qui `xtildecmd2'
-            qui predict __tmo_xtilde, resid
-            drop __tmo_xhat
-        }
+            * Estimate __tmo_xtilde
+            if  inlist("`spec'","regress","reghdfe") {
+                qui `xtildecmd'
+                qui predict __tmo_xtilde, resid
+            }
+            if inlist("`spec'","ivreghdfe","ivreg2") {
+                qui `xtildecmd1'
+                qui predict __tmo_xhat
+                qui `xtildecmd2'
+                qui predict __tmo_xtilde, resid
+                drop __tmo_xhat
+            }
 
-        * Check __tmo_xtilde is correct
-        qui reg `y' __tmo_xtilde `weightexp'
-        if abs(beta-_b[__tmo_xtilde])>1e-5 {
-            di as error "__tmo_xtilde is incorrect"
-            exit
-        }
+            * Check __tmo_xtilde is correct
+            qui reg `y' __tmo_xtilde `weightexp'
+            if abs(beta-_b[__tmo_xtilde])>1e-5 {
+                di as error "__tmo_xtilde is incorrect"
+                exit
+            }
 
-        * Loop through auxiliary outcomes and save residuals
-        cap drop __tmo_resid*
+            * Loop through auxiliary outcomes and save residuals
+            cap drop __tmo_resid*
 
-        if  inlist("`spec'","regress","ivreg2") {
-            * Only keep cmd before comma (faster runtime)
-            local comma_start = strpos("`cmd'",",")
-            if `comma_start'>0 {
-                local before_comma = substr("`cmd'",1,`comma_start'-1)
-                local after_comma = substr("`cmd'", `comma_start'+1, .)
+            if  inlist("`spec'","regress","ivreg2") {
+                * Only keep cmd before comma (faster runtime)
+                local comma_start = strpos("`cmd'",",")
+                if `comma_start'>0 {
+                    local before_comma = substr("`cmd'",1,`comma_start'-1)
+                    local after_comma = substr("`cmd'", `comma_start'+1, .)
 
-                * Check whether there is nocons option and include if so
-                local has_nocon = regexm("`after_comma'", "(,noc|,noco|,nocon |,nocons|,noconst|,noconsta|,noconstan|,noconstant| noc| noco| nocon| nocons| noconst| noconsta| noconstan| noconstant)")
-                if `has_nocon' {
-                    local nocons , nocons 
+                    * Check whether there is nocons option and include if so
+                    local has_nocon = regexm("`after_comma'", "(,noc|,noco|,nocon |,nocons|,noconst|,noconsta|,noconstan|,noconstant| noc| noco| nocon| nocons| noconst| noconsta| noconstan| noconstant)")
+                    if `has_nocon' {
+                        local nocons , nocons 
+                    }
+                    else local nocons
                 }
-                else local nocons
+                else {
+                    local before_comma `cmd'
+                    local nocons
+                }
+                
+                local cmd_toloop `before_comma' `nocons'
+
+                local ynum=1
+                foreach aux_y in `y' `ylist' {
+                    local cmd_inloop = subinstr("`cmd_toloop'","`y'","`aux_y'",1)
+                    qui `cmd_inloop'
+                    qui predict __tmo_resid`ynum', resid
+                    local ++ynum
+                }
+            }
+            
+            if "`spec'"=="reghdfe" {
+                * Remove any clustering (faster runtime)
+                local cmd_toloop `cmd'
+                while regexm("`cmd_toloop'", "(cl|clu|clus|clust|cluste|cluster|vce)\([^)]*\)") {
+                    local cmd_toloop = regexr("`cmd_toloop'", "(cl|clu|clus|clust|cluste|cluster|vce)\([^)]*\)", "")
+                }
+
+                local ynum=1
+                foreach aux_y in `y' `ylist' {
+                    local cmd_inloop = subinstr("`cmd_toloop'","`y'","`aux_y'",1)
+                    qui `cmd_inloop' resid
+                    qui predict __tmo_resid`ynum', resid
+                    local ++ynum
+                }
+            }
+
+            if "`spec'"=="ivreghdfe" {
+                * Remove any clustering (faster runtime)
+                local cmd_toloop `cmd'
+                while regexm("`cmd_toloop'", "(cl|clu|clus|clust|cluste|cluster|vce)\([^)]*\)") {
+                    local cmd_toloop = regexr("`cmd_toloop'", "(cl|clu|clus|clust|cluste|cluster|vce)\([^)]*\)", "")
+                }
+
+                * Specify FEs to save
+                local absorb_start = regexm("`cmd'", "(a|ab|abs|abso|absor|absorb)\(([^)]+)\)")
+                local absorb_vars "`=regexs(2)'"
+                local absorb_vars_savefe
+                local absorb_vars_fesum
+                local fe=1
+                foreach fe_var in `absorb_vars' {
+                    local absorb_vars_savefe `absorb_vars_savefe' __tmo_fe`fe'=`fe_var'
+                    local absorb_vars_fesum `absorb_vars_fesum' + __tmo_fe`fe'
+                    local ++fe
+                }
+                local cmd_toloop = regexr("`cmd_toloop'", "(a|ab|abs|abso|absor|absorb)\([^)]*\)", "")
+                local cmd_toloop `cmd_toloop' absorb(`absorb_vars_savefe')
+
+                local ynum=1
+                foreach aux_y in `y' `ylist' {
+                    local cmd_inloop = subinstr("`cmd_toloop'","`y'","`aux_y'",1)
+                    cap drop __tmo_fe*
+                    qui `cmd_inloop'
+                    cap drop __tmo_xb 
+                    qui predict __tmo_xb
+                    qui gen __tmo_resid`ynum' = `aux_y' - (__tmo_xb`absorb_vars_fesum')
+                    local ++ynum
+                }
+            }
+            scalar D = `ynum'-1
+
+            * Calculate correlation in residuals and contribution to variance
+            keep `idvar' `timevar' `weightvar' __tmo_xtilde __tmo_resid*
+            qui hashsort `idvar' `timevar'
+
+            if "`timevar'"=="" { // Cross-sectional case
+                * Store data in Mata
+                mata: id = st_data(.,"`idvar'")
+                mata: xtilde = st_data(.,"__tmo_xtilde")
+
+                if "`weightvar'"!="" {
+                    mata: wgt = st_data(.,"`weightvar'")
+                }
+                else {
+                    mata: wgt = J(rows(xtilde),1,1)
+                }
+                mata: xtilde_wgt = xtilde:*wgt
+                
+                mata: Res1 = st_data(.,"__tmo_resid1")
+                mata: Res = st_data(.,"__tmo_resid*")
+
+                * Compute correlation in outcomes
+                clear
+                mata: CovEpsVec = DenomVec = LowTriInd = id_widerowvec = id_widecolvec = J(0,0,.)
+                mata: corr_resid(id, Res, `misslimit', CovEpsVec, DenomVec, LowTriInd, id_widerowvec, id_widecolvec)
+
+                * Compute contribution to SE for each pair of locations
+                mata: ResXtildeVec = J(0,0,.)
+                mata: sandwich_crosssec(id_widerowvec, id_widecolvec, LowTriInd, xtilde_wgt, Res1, ResXtildeVec)
+            }
+            else { // Panel case
+                * Store data in Mata
+                mata: id = st_data(.,"`idvar'")
+                mata: t = st_data(.,"`timevar'")
+                mata: xtilde = st_data(.,"__tmo_xtilde")
+            
+                if "`weightvar'"!="" {
+                    mata: wgt = st_data(.,"`weightvar'")
+                }
+                else {
+                    mata: wgt = J(rows(xtilde),1,1)
+                }
+                mata: xtilde_wgt = xtilde:*wgt
+
+                mata: Res1 = st_data(.,"__tmo_resid1")
+                
+                ** Reshape Res
+                * To make sure each location is shown for all time periods
+                qui  tsset `idvar' `timevar'
+                tsfill, full
+
+                * Drop time periods that are all missing for resids of main outcome 
+                qui gegen __tmo_resid1_missing = sum(!missing(__tmo_resid1)), by(`timevar')
+                qui drop if __tmo_resid1_missing==0
+                drop __tmo_resid1_missing
+                
+                * Input NT x D matrix of residuals to Mata
+                mata: Res = st_data(.,"__tmo_resid*")
+                mata: Dn = cols(Res)
+                mata: idfull = st_data(.,"`idvar'")
+                
+                * Reshape matrix of residuals to N x TD
+                mata: Res = rowshape(Res,N)
+                mata: id_wide = rowshape(idfull,N)
+                mata: id_wide = id_wide[,1]
+                mata: assert(rows(uniqrows(id_wide))==N)
+                mata: assert(cols(Res)==Dn*T)
+
+                * Compute correlation in outcomes
+                clear
+                mata: CovEpsVec = DenomVec = LowTriInd = id_widerowvec = id_widecolvec = J(0,0,.)
+                mata: corr_resid(id_wide, Res, `misslimit', CovEpsVec, DenomVec, LowTriInd, id_widerowvec, id_widecolvec)
+
+                * Compute contribution to SE for each pair of locations
+                sandwich_panel, rows(20000000) nloc(`N') ntime(`T') noi
+            }
+
+            * Normalize contribution to variance
+            mata: resxtildenorm(ResXtildeVec, xtilde, xtilde_wgt)
+
+            * Calculate part of contribution to scpc SE if specified
+            if "`scpc_cmd'"!="" {
+                mata: y_scpc = (sqrt(N)/(xtilde'*xtilde)):*Res1:*xtilde	
+                mata: st_local("scpc_obsN",strofreal(rows(id),"%50.0f"))
+                
+                clear
+                gen id1=.
+                gen y_scpc1=.
+                
+                qui set obs `scpc_obsN'
+                
+                mata: st_store(.,.,(id,y_scpc))
+                
+                cap gisid id1
+                if _rc gcollapse (sum) y_scpc1, by(id1)
+
+                qui compress
+                tempfile scpc1
+                qui save `scpc1'
+                
+                rename id1 id2
+                rename y_scpc1 y_scpc2
+                
+                tempfile scpc2
+                qui save `scpc2'
+            }
+
+            * Bring Mata data into Stata
+            if "`cluster'"!="" & "`cluster'"!="`idvar'" {
+                local cl1p cl1path(`cl1')
+                local cl2p cl2path(`cl2') 
             }
             else {
-                local before_comma `cmd'
-                local nocons
+                local cl1p
+                local cl2p
             }
-            
-            local cmd_toloop `before_comma' `nocons'
-
-            local ynum=1
-            foreach aux_y in `y' `ylist' {
-                local cmd_inloop = subinstr("`cmd_toloop'","`y'","`aux_y'",1)
-                qui `cmd_inloop'
-                qui predict __tmo_resid`ynum', resid
-                local ++ynum
-            }
-        }
-        
-        if "`spec'"=="reghdfe" {
-            * Remove any clustering (faster runtime)
-            local cmd_toloop `cmd'
-            while regexm("`cmd_toloop'", "(cl|clu|clus|clust|cluste|cluster|vce)\([^)]*\)") {
-                local cmd_toloop = regexr("`cmd_toloop'", "(cl|clu|clus|clust|cluste|cluster|vce)\([^)]*\)", "")
-            }
-
-            local ynum=1
-            foreach aux_y in `y' `ylist' {
-                local cmd_inloop = subinstr("`cmd_toloop'","`y'","`aux_y'",1)
-                qui `cmd_inloop' resid
-                qui predict __tmo_resid`ynum', resid
-                local ++ynum
-            }
-        }
-
-        if "`spec'"=="ivreghdfe" {
-            * Remove any clustering (faster runtime)
-            local cmd_toloop `cmd'
-            while regexm("`cmd_toloop'", "(cl|clu|clus|clust|cluste|cluster|vce)\([^)]*\)") {
-                local cmd_toloop = regexr("`cmd_toloop'", "(cl|clu|clus|clust|cluste|cluster|vce)\([^)]*\)", "")
-            }
-
-            * Specify FEs to save
-            local absorb_start = regexm("`cmd'", "(a|ab|abs|abso|absor|absorb)\(([^)]+)\)")
-            local absorb_vars "`=regexs(2)'"
-            local absorb_vars_savefe
-            local absorb_vars_fesum
-            local fe=1
-            foreach fe_var in `absorb_vars' {
-                local absorb_vars_savefe `absorb_vars_savefe' __tmo_fe`fe'=`fe_var'
-                local absorb_vars_fesum `absorb_vars_fesum' + __tmo_fe`fe'
-                local ++fe
-            }
-            local cmd_toloop = regexr("`cmd_toloop'", "(a|ab|abs|abso|absor|absorb)\([^)]*\)", "")
-            local cmd_toloop `cmd_toloop' absorb(`absorb_vars_savefe')
-
-            local ynum=1
-            foreach aux_y in `y' `ylist' {
-                local cmd_inloop = subinstr("`cmd_toloop'","`y'","`aux_y'",1)
-                cap drop __tmo_fe*
-                qui `cmd_inloop'
-                cap drop __tmo_xb 
-                qui predict __tmo_xb
-                qui gen __tmo_resid`ynum' = `aux_y' - (__tmo_xb`absorb_vars_fesum')
-                local ++ynum
-            }
-        }
-        scalar D = `ynum'-1
-
-        * Calculate correlation in residuals and contribution to variance
-        keep `idvar' `timevar' `weightvar' __tmo_xtilde __tmo_resid*
-        qui hashsort `idvar' `timevar'
-
-        if "`timevar'"=="" { // Cross-sectional case
-            * Store data in Mata
-            mata: id = st_data(.,"`idvar'")
-            mata: xtilde = st_data(.,"__tmo_xtilde")
-
-            if "`weightvar'"!="" {
-                mata: wgt = st_data(.,"`weightvar'")
+            if "`filesuffix'"!="" {
+                local savepath filesuffix(`filesuffix') 
             }
             else {
-                mata: wgt = J(rows(xtilde),1,1)
+                local savepath
             }
-            mata: xtilde_wgt = xtilde:*wgt
-            
-            mata: Res1 = st_data(.,"__tmo_resid1")
-            mata: Res = st_data(.,"__tmo_resid*")
-
-            * Compute correlation in outcomes
-            clear
-            mata: CovEpsVec = DenomVec = LowTriInd = id_widerowvec = id_widecolvec = J(0,0,.)
-            mata: corr_resid(id, Res, `misslimit', CovEpsVec, DenomVec, LowTriInd, id_widerowvec, id_widecolvec)
-
-            * Compute contribution to SE for each pair of locations
-            mata: ResXtildeVec = J(0,0,.)
-            mata: sandwich_crosssec(id_widerowvec, id_widecolvec, LowTriInd, xtilde_wgt, Res1, ResXtildeVec)
-        }
-        else { // Panel case
-            * Store data in Mata
-            mata: id = st_data(.,"`idvar'")
-            mata: t = st_data(.,"`timevar'")
-            mata: xtilde = st_data(.,"__tmo_xtilde")
-        
-            if "`weightvar'"!="" {
-                mata: wgt = st_data(.,"`weightvar'")
+            if "`longitude'"!="" & "`latitude'"!="" {
+                local distp distpath(`dist')
             }
             else {
-                mata: wgt = J(rows(xtilde),1,1)
+                local distp
             }
-            mata: xtilde_wgt = xtilde:*wgt
-
-            mata: Res1 = st_data(.,"__tmo_resid1")
-            
-            ** Reshape Res
-            * To make sure each location is shown for all time periods
-            qui  tsset `idvar' `timevar'
-            tsfill, full
-
-            * Drop time periods that are all missing for resids of main outcome 
-            qui gegen __tmo_resid1_missing = sum(!missing(__tmo_resid1)), by(`timevar')
-            qui drop if __tmo_resid1_missing==0
-            drop __tmo_resid1_missing
-            
-            * Input NT x D matrix of residuals to Mata
-            mata: Res = st_data(.,"__tmo_resid*")
-            mata: Dn = cols(Res)
-            mata: idfull = st_data(.,"`idvar'")
-            
-            * Reshape matrix of residuals to N x TD
-            mata: Res = rowshape(Res,N)
-            mata: id_wide = rowshape(idfull,N)
-            mata: id_wide = id_wide[,1]
-            mata: assert(rows(uniqrows(id_wide))==N)
-            mata: assert(cols(Res)==Dn*T)
-
-            * Compute correlation in outcomes
-            clear
-            mata: CovEpsVec = DenomVec = LowTriInd = id_widerowvec = id_widecolvec = J(0,0,.)
-            mata: corr_resid(id_wide, Res, `misslimit', CovEpsVec, DenomVec, LowTriInd, id_widerowvec, id_widecolvec)
-
-            * Compute contribution to SE for each pair of locations
-            sandwich_panel, rows(20000000) nloc(`N') ntime(`T') noi
-        }
-
-        * Normalize contribution to variance
-        mata: resxtildenorm(ResXtildeVec, xtilde, xtilde_wgt)
-
-        * Calculate part of contribution to scpc SE if specified
-        if "`scpc_cmd'"!="" {
-            mata: y_scpc = (sqrt(N)/(xtilde'*xtilde)):*Res1:*xtilde	
-            mata: st_local("scpc_obsN",strofreal(rows(id),"%50.0f"))
-            
-            clear
-            gen id1=.
-            gen y_scpc1=.
-            
-            qui set obs `scpc_obsN'
-            
-            mata: st_store(.,.,(id,y_scpc))
-            
-            cap gisid id1
-            if _rc gcollapse (sum) y_scpc1, by(id1)
-
-            qui compress
-            tempfile scpc1
-            qui save `scpc1'
-            
-            rename id1 id2
-            rename y_scpc1 y_scpc2
-            
-            tempfile scpc2
-            qui save `scpc2'
-        }
-
-        * Bring Mata data into Stata
-        if "`cluster'"!="" & "`cluster'"!="`idvar'" {
-            local cl1p cl1path(`cl1')
-            local cl2p cl2path(`cl2') 
+            if "`scpc_cmd'"!="" {
+                local scpcw scpcwfin(`Wfin')
+                local scpcy1 scpcy1path(`scpc1')
+                local scpcy2 scpcy2path(`scpc2')
+            }
+            else {
+                local scpcw
+                local scpcy1
+                local scpcy2
+            }
+            load_data, nloc(`N') `cl1p' `cl2p' `distp' `savedyad' `savepath' `scpcw' `scpcy1' `scpcy2'
         }
         else {
-            local cl1p
-            local cl2p
+            if "`filesuffix'"!="" {
+                local savepath filesuffix(`filesuffix') 
+            }
+            else {
+                local savepath
+            }
+
+            use "`load'_est.dta", clear
+            scalar D = N_outcomes[1]
+
+            use "`load'_dyad.dta", clear
         }
-        if "`filesuffix'"!="" {
-            local savepath filesuffix(`filesuffix') 
-        }
-        else {
-            local savepath
-        }
-        if "`longitude'"!="" & "`latitude'"!="" {
-            local distp distpath(`dist')
-        }
-        else {
-            local distp
-        }
-        if "`scpc_cmd'"!="" {
-            local scpcw scpcwfin(`Wfin')
-            local scpcy1 scpcy1path(`scpc1')
-            local scpcy2 scpcy2path(`scpc2')
-        }
-        else {
-            local scpcw
-            local scpcy1
-            local scpcy2
-        }
-        load_data, nloc(`N') `cl1p' `cl2p' `distp' `savedyad' `savepath' `scpcw' `scpcy1' `scpcy2'
 
         * Compute degrees of freedom and threshold
         dfqt, `plotq' `plothist' nbins(`plothistnbins') nloc(`N') `savepath'
@@ -758,7 +773,7 @@ program define tmo, rclass
         matlist tmo_results, border(all) cspec(o2& %20s | %9.3f o2 & %9.3f o2 & %6.2f o2 & %4.3f o2 & %9.3f o2 & %9.3f o2 &) rspec(&-&)
 
         mat tmo_details = J(5,1,.)
-        mat rowname tmo_details = "Optimal threshold" "% of correlations >= threshold" "% >= threshold (excl. clusters/Conley)" "# outcomes" "Degrees of freedom" 
+        mat rowname tmo_details = "Optimal threshold" "% of off-diag in SE est." "% >= threshold (excl. clusters/Conley)" "# outcomes" "Degrees of freedom" 
         mat tmo_details[1,1] = thres
         mat tmo_details[2,1] = offdP*100
         mat tmo_details[3,1] = offdPnocl*100
@@ -1347,7 +1362,7 @@ program define tmo_save,
     preserve
         clear
 
-        set obs 1
+        qui set obs 1
 
         qui gen beta = beta
         qui gen orig_se = se

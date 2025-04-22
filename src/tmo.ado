@@ -1,4 +1,4 @@
-*! version 0.9.0b2 2025-04-14
+*! version 0.9.0b3 2025-04-22
 
 capture program drop tmo
 program define tmo, rclass
@@ -7,7 +7,7 @@ program define tmo, rclass
     syntax, ///
         cmd(str) x(varname) ylist(varlist) Idvar(varname) ///
         [Timevar(varname)] ///
-        [LONgitude(varname)] [LATitude(varname)] [DISTTHREShold(real 0)] [miles] ///
+        [LATitude(varname)] [LONgitude(varname)] [DISTTHREShold(real 0)] [miles] ///
         [THREShold(real -9)] [thresholdoff] ///
         [MISSlimit(real 0.1)] ///
         [FILEsuffix(str)] ///

@@ -1,5 +1,5 @@
 {smcl}
-{* *! version 0.9.0b1 2025-04-08}{...}
+{* *! version 0.9.0b2 2025-04-22}{...}
 {title:Title}
 
 {pstd}
@@ -20,7 +20,7 @@ regression of interest{p_end}
 {synopt : } - {cmd:tmo} currently supports regressions using {help regress}, 
 {help reghdfe}, {help ivreg2}, or {help ivreghdfe}{p_end}
 
-{synopt :{opth x(varname)}} regressor of interest in {it:cmdline} for which to 
+{synopt :{opth x(varname)}} regressor of interest in {it:cmd} for which to 
 estimate TMO standard errors{p_end}
 {synopt : } - {cmd:tmo} estimates the standard error for only this declared 
 independent variable {p_end}
@@ -31,16 +31,33 @@ independent variable {p_end}
 {synopt :{opth i:dvar(varname)}} location identifier variable; must be unique 
 (within each {it:t} for panel case) {p_end}
 
-{syntab:Panel setting}
-{synopt :{opth t:imevar(varname)}} time identifier variable; must be declared 
-for panel case{p_end}
-
-{syntab:Optional}
 {synopt :{opt miss:limit(#)}} limit for proportion of observations allowed to be 
 missing for auxiliary outcomes {p_end}
 {synopt : } - auxiliary outcomes missing more than {cmd:misslimit} are not used 
 {p_end}
-{synopt : } - {cmd:misslimit} must be in [0,1]; default is 0.1 {p_end}
+{synopt : } - {cmd:misslimit} must be between [0,1]; default is 0.1 {p_end}
+
+{dlgtab:Panel setting}
+
+{synopt :{opth t:imevar(varname)}} time identifier variable; must be declared 
+for panel case{p_end}
+
+{dlgtab:Distance-based settings}
+
+{synopt :{opth lat:itude(varname)}} latitude variable in signed decimal degrees 
+{p_end}
+
+{synopt :{opth lon:gitude(varname)}} longitude variable in signed decimal 
+degrees {p_end}
+
+{synopt :{opt distthres:hold(#)}} distance threshold in miles to allow 
+for arbitrary correlation between pairs of locations that are 
+{it:distthreshold} or fewer miles apart {p_end}
+{synopt : } - setting {it:distthreshold} combines {cmd:tmo} with a 
+Conley adjustment using a uniform kernel {p_end}
+{synopt : } - requires setting {it:latitude} and {it:longitude} {p_end}
+
+{dlgtab:Saving figures and tables}
 
 {synopt :{opt file:suffix(str)}} folder path and base filename for saving 
 figures and results {p_end}
@@ -62,6 +79,24 @@ locations {p_end}
 across thresholds {p_end}
 
 {synopt :{opt saveest}} save results in {cmd:r()} to Stata data file {p_end}
+
+{dlgtab:Custom threshold}
+
+{synopt :{opt thres:hold(#)}} set custom threshold instead of using the
+optimal threshold from the interquartile range method {p_end}
+{synopt : } - {it:threshold} must be between [0,1] {p_end}
+
+{synopt :{opt thresholdoff}} turns off the {cmd:tmo} adjustment entirely {p_end}
+
+{dlgtab:SCPC options}
+
+{synopt :{opt scpc_cmd(cmdline)}} command for regression of interest
+before applying {help scpc} adjustment {p_end}
+{synopt : } - setting {it:scpc_cmd} combines {cmd:tmo} with the SCPC
+method from {help tmo##scpcpaper:Müller and Watson (2022)} {p_end}
+
+{synopt :{opt scpc_uncond}} turns on the unconditional SCPC Inference
+setting{p_end}
 {synoptline}
 {p2colreset}{...}
 
@@ -166,4 +201,7 @@ report any errors to wjnkim@stanford.edu.
 {marker paper}{...}
 {phang}DellaVigna, Stefano, Guido Imbens, Woojin Kim, and David Ritzwoller. 
 (2025). "Using Multiple Outcomes to Adjust Standard Errors for Spatial 
-Correlation."{p_end}
+Correlation." {browse "https://arxiv.org/abs/2504.13295"}{p_end}
+
+{marker scpcpaper}{...}
+{phang}Müller, Ulrich K. and Mark W. Watson "Spatial Correlation Robust Inference", Econometrica 90 (2022), 2901–2935. {browse "https://www.princeton.edu/~umueller/SHAR.pdf"}.

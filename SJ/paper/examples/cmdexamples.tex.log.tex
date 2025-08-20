@@ -1,0 +1,29 @@
+. noisily timer on 1
+{\smallskip}
+. qui tmo_NP, cmd(regress PIN_persincpc_d EDU_college_d i.stfips, r) /// 
+> x(EDU_college_d) ylist(`ylist') i(fips)
+{\smallskip}
+. timer off 1
+{\smallskip}
+. 
+. timer on 2
+{\smallskip}
+. qui tmo_NP, cmd(reghdfe PIN_persincpc_d EDU_college_d, vce(r) abs(stfip
+> s)) /// 
+> x(EDU_college_d) ylist(`ylist') i(fips)
+{\smallskip}
+. timer off 2
+{\smallskip}
+. 
+. timer on 3
+{\smallskip}
+. qui tmo_NP, cmd(areg PIN_persincpc_d EDU_college_d, r abs(stfips)) /// 
+> x(EDU_college_d) ylist(`ylist') i(fips)
+{\smallskip}
+. timer off 3
+{\smallskip}
+. timer list
+   1:      5.83 /        1 =       5.8320
+   2:      7.12 /        1 =       7.1210
+   3:      6.76 /        1 =       6.7580
+{\smallskip}

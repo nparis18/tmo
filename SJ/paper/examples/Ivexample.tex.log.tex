@@ -1,0 +1,28 @@
+. use county_differences, clear
+{\smallskip}
+. qui ds fips stfips life_d VST_infmort_d AHRQ_emerdist_d AHRQ_obgyndist_d AHRQ_pediadist_d, not
+{\smallskip}
+. local ylist `r(varlist)'
+{\smallskip}
+. 
+. tmo, cmd(ivreg2 life_d (VST_infmort_d = AHRQ_emerdist_d AHRQ_obgyndist_d AHRQ_pediadist_d)) ///
+> x(VST_infmort_d) ylist(`ylist') i(fips)
+{\smallskip}
+Linear Regression with TMO                             Number of obs =   3,060
+                                                       R-squared     = -0.0464
+                                                       Adj R-squared = -0.0464
+                                                       Root MSE      =  0.0460
+{\smallskip}
+\HLI{14}{\TOPT}\HLI{64}
+       life_d {\VBAR} Coefficient  Std. err.      z    P>|z|     [95\% conf. interval]
+\HLI{14}{\PLUS}\HLI{64}
+VST_infmort_d {\VBAR}  -.0082797    .015985    -0.52   0.604    -.0396097    .0230503
+\HLI{14}{\BOTT}\HLI{64}
+\HLI{79}
+                                                                               
+                                                   Optimal threshold      0.502
+                                            \% of off-diag in SE est.      5.843
+                              \% >= threshold (excl. clusters/Conley)      5.843
+                                                          \# outcomes     87.000
+                                                  Degrees of freedom     22.522
+\HLI{79}

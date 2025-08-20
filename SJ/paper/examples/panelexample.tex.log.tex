@@ -1,0 +1,32 @@
+. use "https://raw.githubusercontent.com/wjnkim/tmo/master/example/county_panel.d
+> ta", clear
+{\smallskip}
+. 
+. qui ds fips stfips EMN_farm EDU_publicenroll year, not
+{\smallskip}
+. local ylist `r(varlist)'
+{\smallskip}
+. 
+. tmo, cmd(reg EMN_farm EDU_publicenroll i.year i.stfips , ///
+> cluster(fips)) x(EDU_publicenroll) ylist(`ylist') i(fips) t(year)
+Computed 0.03\% of sandwich
+Computed 51.72\% of sandwich
+{\smallskip}
+Linear Regression with TMO                              Number of obs =  6,222
+                                                        R-squared     = 0.3426
+                                                        Adj R-squared = 0.3426
+                                                        Root MSE      = 0.7683
+{\smallskip}
+\HLI{15}{\TOPT}\HLI{64}
+      EMN_farm {\VBAR} Coefficient  Std. err.      t    P>|t|     [95\% conf. interval]
+\HLI{15}{\PLUS}\HLI{64}
+EDU_publicen{\tytilde}l {\VBAR}   .1355818   .0758575     1.79   0.074    -.0131541    .2843177
+\HLI{15}{\BOTT}\HLI{64}
+\HLI{79}
+                                                                               
+                                                   Optimal threshold      0.545
+                                            \% of off-diag in SE est.      0.892
+                              \% >= threshold (excl. clusters/Conley)      0.892
+                                                          \# outcomes     63.000
+                                                  Degrees of freedom     24.612
+\HLI{79}

@@ -1,9 +1,3 @@
-/* maps.do                            DCC                  yyyy-mm-dd:2025-05-18
-----|----1----|----2----|----3----|----4----|----5----|----6----|----7----|----8
-
-  Sets up maps to simply display the difference between methods
-*/
-
 vers 16
 clear all
 set more off
@@ -13,16 +7,13 @@ cap log close
 *--- (0) Set up the environment
 *-------------------------------------------------------------------------------
 *global ROOT "/home/dcc213/code/tmo/SJ"
-global ROOT "/Users/MacBook/Dropbox/Research/tmo/SJ"
-global DAT "$ROOT/data"
-global SRC "$ROOT/code"
-global OUT "$ROOT/results/figures"
+global ROOT "/Users/MacBook/Dropbox/Research/tmo_all/tmo"
+global SJ "$ROOT/SJ"
+global FIG "$SJ/results/figures"
+global PPR "$SJ/paper"
 
 clear all
-do "/Users/MacBook/Dropbox/Research/tmo/tmo_NP.ado"
-*use "https://raw.githubusercontent.com/wjnkim/tmo/master/example/county_differences.dta", clear
-*save county_differences, replace
-use county_differences, clear
+use "https://raw.githubusercontent.com/wjnkim/tmo/master/example/county_differences.dta", clear
 
 qui ds fips stfips PIN_persincpc_d EDU_college_d, not
 local ylist `r(varlist)'
@@ -47,16 +38,17 @@ sjlog close, replace
 
 **************************************** Panel example*************************************************+
 
-*sjlog using "$SJ/panelexample.tex", replace
+qui do "${ROOT}/src/tmo_new.ado"
+
+sjlog using "${PPR}/examples/panelexample.tex", replace
 use "https://raw.githubusercontent.com/wjnkim/tmo/master/example/county_panel.dta", clear
-qui do "/Users/MacBook/Dropbox/Research/tmo/tmo_NP.ado"
 
 qui ds fips stfips EMN_farm EDU_publicenroll year, not
 local ylist `r(varlist)'
 
-tmo_NP, cmd(reg EMN_farm EDU_publicenroll i.year i.stfips , ///
+tmo_NP, cmd(reg EMN_farm EDU_publicenroll i.year i.stfips, ///
 cluster(fips)) x(EDU_publicenroll) ylist(`ylist') i(fips) t(year)
-*sjlog close, replace
+sjlog close, replace
 
 *************************************** IV example *****************************************************************
 
@@ -65,14 +57,13 @@ use county_differences, clear
 qui ds fips stfips life_d VST_infmort_d AHRQ_emerdist_d AHRQ_obgyndist_d AHRQ_pediadist_d, not
 local ylist `r(varlist)'
 
-tmo, cmd(ivreg2 life_d (VST_infmort_d = AHRQ_emerdist_d AHRQ_obgyndist_d AHRQ_pediadist_d)) ///
+tmo_NP, cmd(ivreg2 life_d (VST_infmort_d = AHRQ_emerdist_d AHRQ_obgyndist_d AHRQ_pediadist_d)) ///
 x(VST_infmort_d) ylist(`ylist') i(fips)
 sjlog close, replace
 
 ********************************* Alternative estimators ***********************************************************
 
 sjlog using "$SJ/alternativeExample.tex", replace
-use county_differences, clear
 qui ds fips stfips PIN_persincpc_d EDU_college_d, not
 global ylist `r(varlist)'
 

@@ -1,7 +1,7 @@
 *! version 0.9.0b3 2025-04-22
 
-capture program drop tmo
-program define tmo, eclass
+capture program drop tmo_NP
+program define tmo_NP, eclass
     version 13
 
     syntax, ///
@@ -25,9 +25,9 @@ program define tmo, eclass
     // DC: Could allow alternative estimation procedures provided they 
     //   are e-class if some judicious unpacking of arguments is done? 
     qui `cmd'
-    local spec `e(cmd)'
+    local spec `e(cmd)' 
     // DC: Adding for ereturn display
-    marksample touse 
+    marksample touse
     local r2a = e(r2_a)
     local r2  = e(r2_a)
     local nobs = e(N)
@@ -35,7 +35,7 @@ program define tmo, eclass
     local depvar = e(depvar)
 
     * Assert that cmd uses supported command
-    if !inlist("`spec'","regress","reghdfe","ivreghdfe","ivreg2") {
+    if !inlist("`spec'","regress","reghdfe","areg","ivreghdfe","ivreg2","ivregress") {
             di as error "`spec' not supported"
             exit
     }
@@ -54,8 +54,8 @@ program define tmo, eclass
     * Extract clusters
     local cluster `e(clustvar)'
     
-    * Extract absorb vars for (iv)reghdfe
-    local absorb_vars `e(absvars)'
+    * Extract absorb vars for (iv)reghdfe adn areg
+    local absorb_vars `e(absvars)' `e(absvar)'
 
     * Extract weights
     if "`e(wexp)'"!="" {
@@ -84,8 +84,7 @@ program define tmo, eclass
             qui keep if !missing(`longitude') & !missing(`latitude') & `tmo_sample'
 
             rename `latitude' s_1
-            rename `longitude' s_2 
-            
+            rename `longitude' s_2
             qui hashsort `idvar'
             qui `scpc_cmd'
             qui keep if e(sample)
@@ -205,11 +204,21 @@ program define tmo, eclass
     }
 
     * Require absorb if (iv)reghdfe
-    if inlist("`spec'","reghdfe","ivreghdfe") & "`absorb_vars'"=="" {
+    if inlist("`spec'","reghdfe","ivreghdfe", "areg") & "`absorb_vars'"=="" {
         di as error "absorb() required for `spec'"
         exit
-    } 
-
+    }
+/*
+    * Require xtset if xtreg
+    capture xtset
+    if "`spec'" == "xtreg"{
+        capture xtset
+        if _rc {
+            di as error "ERROR: Panel no declarado. Usa `xtset´ antes de `xtreg_safe´."
+            exit 198
+        }
+    }
+*/
     * Assert idvar is unique (within timevar if panel)
 	if "`idvar'"!="" & "`timevar'"=="" {
 		gisid `idvar' if `tmo_sample'
@@ -288,7 +297,7 @@ program define tmo, eclass
     *** CLEAN CMD ***
     *****************
     
-    if inlist("`spec'","reghdfe","ivreghdfe") {
+    if inlist("`spec'","reghdfe","ivreghdfe","areg") {
         * Remove any resid specified in cmd already
         local comma_start  = strpos("`cmd'", ",")
         local before_comma = substr("`cmd'", 1, `comma_start'-1)
@@ -322,27 +331,15 @@ program define tmo, eclass
                 di as error "Only clustering by groups of locations is supported (`cluster' must be constant within `idvar')"
                 exit
             }
-
-            local cln=1
-            foreach var in `cluster' {
-                rename `var' __tmo_cl1_`cln'
-                local ++cln
-            }
-            rename `idvar' id1
-            qui compress
-            tempfile cl1
-            qui save `cl1'
-
-            local cln=1
-            foreach var in `cluster' {
-                rename __tmo_cl1_`cln' __tmo_cl2_`cln'
-                local ++cln
-            }
-            rename id1 id2
-            tempfile cl2
-            qui save `cl2'
         restore
+        local clustervars `cluster'
+        local clusterOff = 0
     }
+    else{
+        local clustervars
+        local clusterOff = 1 
+    }
+
 
     *** END STORE ID-CLUSTER XW ***
 
@@ -410,7 +407,7 @@ program define tmo, eclass
     *** WRITE CMD FOR XTILDE ***
     ****************************
 
-    if  inlist("`spec'","regress","reghdfe") {
+    if  inlist("`spec'","regress","reghdfe", "areg") {
         local xtildecmd = subinstr("`cmd'"," `y' "," `x' ",1)
         local xtildecmd = subinstr("`xtildecmd'"," `x' "," ",2)
         if "`spec'"=="reghdfe" {
@@ -418,7 +415,7 @@ program define tmo, eclass
         }
     }
     if "`spec'"=="ivreghdfe" {        
-        * Create xtildecmd using reghdfe
+        * Create xtildecmd using ivreghdfe
         local parens_start = strpos("`cmd'", "(")
         local parens_end = strpos("`cmd'", ")")
         local paren_content = substr("`cmd'", `parens_start' + 1, `parens_end' - `parens_start' - 1)
@@ -481,7 +478,49 @@ program define tmo, eclass
         local xtildecmd1 reg `endog' `instr' `controls' `nocons'
         local xtildecmd2 reg __tmo_xhat `controls' `nocons'
     }
-    
+
+    if "`spec'"=="ivregress" {
+
+        * Extract the estimation method (2sls, gmm, liml, etc.)
+        local method = word("`cmd'", 2)
+
+        * Create xtildecmd using ivreghdfe
+        local parens_start = strpos("`cmd'", "(")
+        local parens_end   = strpos("`cmd'", ")")
+        local paren_content = substr("`cmd'", `parens_start' + 1, `parens_end' - `parens_start' - 1)
+
+        local instr_start = strpos("`paren_content'", "=")
+        local endog_part = substr("`paren_content'", 1, `instr_start'-1)
+        local endog      = word("`endog_part'", 1)
+        if wordcount("`endog_part'") > 1 {
+            di as error "Multiple endogenous regressors not supported"
+            exit
+        }
+        if "`endog'"!="`x'" {
+            di as error "Endogenous regressor `endog' is not `x'"
+            exit
+        }
+        local instr = substr("`paren_content'", `instr_start' + 1, .)
+
+        local remaining = subinstr("`cmd'", "ivregress", "", 1)
+        local remaining = subinstr("`remaining'", "`method'","", 1)
+        local remaining = subinstr("`remaining'", "`y'", "", 1)
+        local comma_start = strpos("`remaining'", ",")
+        local remaining = substr("`remaining'", 1, `comma_start'-1)
+        local paren_start = strpos("`remaining'", "(")
+        local paren_end = strpos("`remaining'", ")")
+        local controls = substr("`remaining'", 1, `paren_start'-1) + " " + substr("`remaining'", `paren_end'+1, .)
+
+        local comma_start = strpos("`cmd'", ",")
+        local after_comma = substr("`cmd'", `comma_start'+1, .)
+        local has_nocon = regexm("`after_comma'", "(,noc|,noco|,nocon |,nocons|,noconst|,noconsta|,noconstan|,noconstant| noc| noco| nocon| nocons| noconst| noconsta| noconstan| noconstant)")
+        if `has_nocon' local nocons , nocons 
+        else local nocons
+
+        local xtildecmd1 reg `endog' `instr' `controls' `nocons'
+        local xtildecmd2 reg __tmo_xhat `controls' `nocons'
+    }
+
     *** END WRITE CMD FOR XTILDE ***
 
     
@@ -494,11 +533,11 @@ program define tmo, eclass
             qui keep if `tmo_sample'
 
             * Estimate __tmo_xtilde
-            if  inlist("`spec'","regress","reghdfe") {
+            if  inlist("`spec'","regress","reghdfe","areg") {
                 qui `xtildecmd'
-                qui predict __tmo_xtilde, resid
+                predict __tmo_xtilde, resid
             }
-            if inlist("`spec'","ivreghdfe","ivreg2") {
+            if inlist("`spec'","ivreghdfe","ivreg2", "ivregress") {
                 qui `xtildecmd1'
                 qui predict __tmo_xhat
                 qui `xtildecmd2'
@@ -516,7 +555,7 @@ program define tmo, eclass
             * Loop through auxiliary outcomes and save residuals
             cap drop __tmo_resid*
 
-            if  inlist("`spec'","regress","ivreg2") {
+            if  inlist("`spec'","regress","ivreg2", "ivregress") {
                 * Only keep cmd before comma (faster runtime)
                 local comma_start = strpos("`cmd'",",")
                 if `comma_start'>0 {
@@ -562,7 +601,21 @@ program define tmo, eclass
                     local ++ynum
                 }
             }
+            if "`spec'"=="areg" {
+                * Remove any clustering (faster runtime)
+                local cmd_toloop `cmd'
+                while regexm("`cmd_toloop'", "(cl|clu|clus|clust|cluste|cluster|vce)\([^)]*\)") {
+                    local cmd_toloop = regexr("`cmd_toloop'", "(cl|clu|clus|clust|cluste|cluster|vce)\([^)]*\)", "")
+                }
 
+                local ynum=1
+                foreach aux_y in `y' `ylist' {
+                    local cmd_inloop = subinstr("`cmd_toloop'","`y'","`aux_y'",1)
+                    qui `cmd_inloop'
+                    qui predict __tmo_resid`ynum', resid
+                    local ++ynum
+                }
+            }
             if "`spec'"=="ivreghdfe" {
                 * Remove any clustering (faster runtime)
                 local cmd_toloop `cmd'
@@ -598,52 +651,101 @@ program define tmo, eclass
             scalar D = `ynum'-1
 
             * Calculate correlation in residuals and contribution to variance
-            keep `idvar' `timevar' `weightvar' __tmo_xtilde __tmo_resid*
+            keep `idvar' `timevar' `weightvar' __tmo_xtilde __tmo_resid* `clustervars'
             qui hashsort `idvar' `timevar'
 
-            if "`timevar'"=="" { // Cross-sectional case
-                * Store data in Mata
-                mata: id = st_data(.,"`idvar'")
-                mata: xtilde = st_data(.,"__tmo_xtilde")
+            * Store data in Mata
+            mata: id = st_data(.,"`idvar'")
+            mata: xtilde = st_data(.,"__tmo_xtilde")
+            
+            if "`weightvar'"!="" {
+                mata: wgt = st_data(.,"`weightvar'")
+            }
+            else {
+                mata: wgt = J(rows(xtilde),1,1)
+            }
+            mata: xtilde_wgt = xtilde:*wgt
+            mata: Res1 = st_data(.,"__tmo_resid1")
 
-                if "`weightvar'"!="" {
-                    mata: wgt = st_data(.,"`weightvar'")
-                }
-                else {
-                    mata: wgt = J(rows(xtilde),1,1)
-                }
-                mata: xtilde_wgt = xtilde:*wgt
-                
-                mata: Res1 = st_data(.,"__tmo_resid1")
+            mata: CovEpsVec = J(0,0,.)
+            mata: id_widerowvec = J(0,0,.)
+            mata: id_widecolvec = J(0,0,.)
+            mata: res1_widerowvec = J(0,0,.)
+            mata: res1_widecolvec = J(0,0,.)
+            mata: xtilde_widerowvec = J(0,0,.)
+            mata: xtilde_widecolvec = J(0,0,.)
+
+            if "`timevar'"=="" { // Cross-sectional case
+                * Compute correlation in outcomes
+                //DC: Minor bottleneck here, but not too bad
                 mata: Res = st_data(.,"__tmo_resid*")
 
-                * Compute correlation in outcomes
-                clear
-                mata: CovEpsVec = DenomVec = LowTriInd = id_widerowvec = id_widecolvec = J(0,0,.)
-                //DC: Minor bottleneck here, but not too bad
-                mata: corr_resid(id, Res, `misslimit', CovEpsVec, DenomVec, LowTriInd, id_widerowvec, id_widecolvec)
-                * Compute contribution to SE for each pair of locations
-                mata: ResXtildeVec = J(0,0,.)
-                //DC: THIS IS THE BOTTLENECK
-                mata: sandwich_crosssec(id_widerowvec, id_widecolvec, LowTriInd, xtilde_wgt, Res1, ResXtildeVec)
+                if(`clusterOff') {
+                    clear
+                    mata: corr_resid(id, Res, Res1, `misslimit', CovEpsVec, xtilde_wgt, id_widerowvec, id_widecolvec, res1_widerowvec, res1_widecolvec, xtilde_widerowvec, xtilde_widecolvec, N)
+                }
+                else {
+                    mata: id_cluster = st_data(.,"`clustervars'")
+                    clear
+                    mata: same_cl = J(0,0,.)
+                    mata: corr_resid(id, Res, Res1, `misslimit', CovEpsVec, xtilde_wgt, id_widerowvec, id_widecolvec, res1_widerowvec, res1_widecolvec, xtilde_widerowvec, xtilde_widecolvec, N, id_cluster, same_cl)
+                }
+                mata: st_local("obsN",strofreal(rows(CovEpsVec),"%50.0f"))
+                gen id1=.
+                gen id2=.
+                gen corr=.
 
+                qui set obs `obsN'
+
+                mata: st_store(.,.,(id_widerowvec,id_widecolvec,CovEpsVec))
+
+                qui gen corr_fisher = 0.5 * ln((1+corr)/(1-corr))
+                cap drop offdiag
+                qui gen byte offdiag = !missing(corr) & id1!=id2 & abs(corr)!=1
+
+                if `threshold' == -9{
+                    qui gstats sum corr_fisher if offdiag
+                    scalar sd = (r(p75)-r(p25))/(invnormal(0.75)-invnormal(0.25))
+                    scalar df = 1/(sd^2)
+                    cap drop corr_fisher_abs 
+                    qui gen corr_fisher_abs = abs(corr_fisher)
+                    qui replace corr_fisher_abs = . if !offdiag // will be at end
+                    qui hashsort corr_fisher_abs
+
+                    cap drop cdf_emp_abs_1min cdf_iqr_abs_1min q_iqr_abs
+                    qui count if offdiag
+                    qui gen cdf_emp_abs_1min = 1 - (_n/`r(N)') if offdiag
+                    qui gen cdf_iqr_abs_1min = 1 - 2*(normal(corr_fisher_abs/sd)-0.5) if offdiag
+                    qui gen q_iqr_abs = cdf_emp_abs_1min - 2*cdf_iqr_abs_1min if offdiag
+
+                    qui sum q_iqr_abs if offdiag
+                    qui sum corr_fisher_abs if abs(q_iqr_abs-`r(max)')<=1e-10 & offdiag
+                    scalar fthres = `r(min)'
+                    scalar thres = tanh(fthres)
+                    local thres = thres
+                    keep id1 id2 corr corr_fisher corr_fisher_abs q_iqr_abs offdiag
+                }
+                else{
+                    local thres = `threshold'
+                    keep id1 id2 corr corr_fisher offdiag
+                }
+               * Compute contribution to SE for each pair of locations
+                mata: ResXtildeVec = J(0,0,.)
+
+                //DC: THIS IS THE BOTTLENECK
+                if(`clusterOff') {
+                    mata: sandwich_crosssec(id_widerowvec, id_widecolvec, res1_widerowvec, res1_widecolvec, xtilde_widerowvec, xtilde_widecolvec, CovEpsVec, ResXtildeVec, `thres')
+                    local posSW = 3
+                }
+                else{
+                    mata: sandwich_crosssec(id_widerowvec, id_widecolvec, res1_widerowvec, res1_widecolvec, xtilde_widerowvec, xtilde_widecolvec, CovEpsVec, ResXtildeVec, `thres', same_cl)
+                    local posSW = 4
+                }
             }
             else { // Panel case
                 * Store data in Mata
-                mata: id = st_data(.,"`idvar'")
                 mata: t = st_data(.,"`timevar'")
-                mata: xtilde = st_data(.,"__tmo_xtilde")
-            
-                if "`weightvar'"!="" {
-                    mata: wgt = st_data(.,"`weightvar'")
-                }
-                else {
-                    mata: wgt = J(rows(xtilde),1,1)
-                }
-                mata: xtilde_wgt = xtilde:*wgt
 
-                mata: Res1 = st_data(.,"__tmo_resid1")
-                
                 ** Reshape Res
                 * To make sure each location is shown for all time periods
                 qui  tsset `idvar' `timevar'
@@ -658,25 +760,78 @@ program define tmo, eclass
                 mata: Res = st_data(.,"__tmo_resid*")
                 mata: Dn = cols(Res)
                 mata: idfull = st_data(.,"`idvar'")
-                
+ 
                 * Reshape matrix of residuals to N x TD
                 mata: Res = rowshape(Res,N)
+                mata: Res1= rowshape(Res1,N)
                 mata: id_wide = rowshape(idfull,N)
                 mata: id_wide = id_wide[,1]
                 mata: assert(rows(uniqrows(id_wide))==N)
                 mata: assert(cols(Res)==Dn*T)
 
+                if(`clusterOff') {
+                    clear
+                    mata: corr_resid(id_wide, Res, Res1, `misslimit', CovEpsVec, xtilde_wgt, id_widerowvec, id_widecolvec, res1_widerowvec, res1_widecolvec, xtilde_widerowvec, xtilde_widecolvec, N)
+                    local posSW = 3
+                }
+                else {
+                    mata: id_cluster = st_data(.,"`clustervars'")
+                    clear
+                    mata: same_cl = J(0,0,.)
+                    mata: corr_resid(id_wide, Res, Res1, `misslimit', CovEpsVec, xtilde_wgt, id_widerowvec, id_widecolvec, res1_widerowvec, res1_widecolvec, xtilde_widerowvec, xtilde_widecolvec, N, id_cluster, same_cl)
+                    local posSW = 4
+                }
                 * Compute correlation in outcomes
-                clear
-                mata: CovEpsVec = DenomVec = LowTriInd = id_widerowvec = id_widecolvec = J(0,0,.)
-                mata: corr_resid(id_wide, Res, `misslimit', CovEpsVec, DenomVec, LowTriInd, id_widerowvec, id_widecolvec)
+                mata: st_local("obsN",strofreal(rows(CovEpsVec),"%50.0f"))
+                gen id1=.
+                gen id2=.
+                gen corr=.
+
+                qui set obs `obsN'
+
+                mata: st_store(.,.,(id_widerowvec,id_widecolvec,CovEpsVec))
+
+                qui gen corr_fisher = 0.5 * ln((1+corr)/(1-corr))
+                cap drop offdiag
+                qui gen byte offdiag = !missing(corr) & id1!=id2 & abs(corr)!=1
+
+                qui gstats sum corr_fisher if offdiag
+                scalar sd = (r(p75)-r(p25))/(invnormal(0.75)-invnormal(0.25))
+                scalar df = 1/(sd^2)
+                cap drop corr_fisher_abs 
+                qui gen corr_fisher_abs = abs(corr_fisher)
+                qui replace corr_fisher_abs = . if !offdiag // will be at end
+                qui hashsort corr_fisher_abs
+
+                cap drop cdf_emp_abs_1min cdf_iqr_abs_1min q_iqr_abs
+                qui count if offdiag
+                qui gen cdf_emp_abs_1min = 1 - (_n/`r(N)') if offdiag
+                qui gen cdf_iqr_abs_1min = 1 - 2*(normal(corr_fisher_abs/sd)-0.5) if offdiag
+                qui gen q_iqr_abs = cdf_emp_abs_1min - 2*cdf_iqr_abs_1min if offdiag
+
+                qui sum q_iqr_abs if offdiag
+                qui sum corr_fisher_abs if abs(q_iqr_abs-`r(max)')<=1e-10 & offdiag
+                scalar fthres = `r(min)'
+                           
+                if `threshold' == -9 {
+                    scalar thres = tanh(fthres)
+                    local thres = thres
+                }
+                else local thres = `threshold'
+                keep id1 id2 corr corr_fisher corr_fisher_abs q_iqr_abs offdiag
 
                 * Compute contribution to SE for each pair of locations
-                sandwich_panel, rows(20000000) nloc(`N') ntime(`T') noi
+                sandwich_panel, clusterOff(`clusterOff') nloc(`N') ntime(`T') th(`thres') noi
             }
-
             * Normalize contribution to variance
-            mata: resxtildenorm(ResXtildeVec, xtilde, xtilde_wgt)
+            mata: resxtildenorm(ResXtildeVec, xtilde_wgt, `posSW')
+
+            qui compress
+            tempfile corr
+            qui save `corr'
+            local corr corrpath(`corr')
+
+            clear
 
             * Calculate part of contribution to scpc SE if specified
             if "`scpc_cmd'"!="" {
@@ -704,16 +859,6 @@ program define tmo, eclass
                 tempfile scpc2
                 qui save `scpc2'
             }
-
-            * Bring Mata data into Stata
-            if "`cluster'"!="" & "`cluster'"!="`idvar'" {
-                local cl1p cl1path(`cl1')
-                local cl2p cl2path(`cl2') 
-            }
-            else {
-                local cl1p
-                local cl2p
-            }
             if "`filesuffix'"!="" {
                 local savepath filesuffix(`filesuffix') 
             }
@@ -736,7 +881,7 @@ program define tmo, eclass
                 local scpcy1
                 local scpcy2
             }
-            load_data, nloc(`N') `cl1p' `cl2p' `distp' `savedyad' `savepath' `scpcw' `scpcy1' `scpcy2'
+            load_data, nloc(`N') clusterOff(`clusterOff') `distp' `savedyad' `savepath' `scpcw' `scpcy1' `scpcy2' `corr'
         }
         else {
             if "`filesuffix'"!="" {
@@ -751,90 +896,88 @@ program define tmo, eclass
 
             use "`load'_dyad.dta", clear
         }
-
-        * Compute degrees of freedom and threshold
-        dfqt, `plotq' `plothist' nbins(`plothistnbins') nloc(`N') `savepath'
-
         * Compute TMO SE
-        est_tmo_se, dist_cutoff(`distthreshold') custom_thres(`threshold') `thresholdoff'
+        est_tmo_se, dist_cutoff(`distthreshold') `thresholdoff'
+
+        if ("`plotq'"!="" | "`plothist'"!="" ) {
+            cap drop pdf_iqr
+            qui gen pdf_iqr = normalden(corr_fisher,sd) if offdiag
+            plots_dfqt, `plotq' `plothist' nbins(`plothistnbins') nloc(`N') `savepath'
+        }
 
         * Plot TMO SE over threshold 
         if "`plotse'"!="" {
             tmo_over_thres, `savepath' `saveplotseest' noi dist_cutoff(`distthreshold')
-        }
-        
+        }   
     restore
-
 
         **********************
         *** OUTPUT RESULTS ***
         **********************
-        
-        mat tmo_results = J(1,6,.)
-        mat rownames tmo_results = "`x'"
-        mat colnames tmo_results = "Coef" "TMO SE" "t" "P>|t|" "95% Conf" "Interval"
-        mat tmo_results[1,1] = beta
-        mat tmo_results[1,2] = tmo_se
-        mat tmo_results[1,3] = beta/tmo_se
-        mat tmo_results[1,4] = 2*ttail(df_r, abs(beta/tmo_se))
-        scalar lb = beta - invttail(df_r,0.025)*tmo_se
-        scalar ub = beta + invttail(df_r,0.075)*tmo_se
-        mat tmo_results[1,5] = lb
-        mat tmo_results[1,6] = ub
-        //matlist tmo_results, border(all) cspec(o2& %20s | %9.3f o2 & %9.3f o2 & %6.2f o2 & %4.3f o2 & %9.3f o2 & %9.3f o2 &) rspec(&-&)
+              
+            mat tmo_results = J(1,6,.)
+            mat rownames tmo_results = "`x'"
+            mat colnames tmo_results = "Coef" "TMO SE" "t" "P>|t|" "95% Conf" "Interval"
+            mat tmo_results[1,1] = beta
+            mat tmo_results[1,2] = tmo_se
+            mat tmo_results[1,3] = beta/tmo_se
+            mat tmo_results[1,4] = 2*ttail(df_r, abs(beta/tmo_se))
+            scalar lb = beta - invttail(df_r,0.025)*tmo_se
+            scalar ub = beta + invttail(df_r,0.075)*tmo_se
+            mat tmo_results[1,5] = lb
+            mat tmo_results[1,6] = ub
+            //matlist tmo_results, border(all) cspec(o2& %20s | %9.3f o2 & %9.3f o2 & %6.2f o2 & %4.3f o2 & %9.3f o2 & %9.3f o2 &) rspec(&-&)
 
-        mat tmo_details = J(5,1,.)
-        mat rowname tmo_details = "Optimal threshold" "% of off-diag in SE est." "% >= threshold (excl. clusters/Conley)" "# outcomes" "Degrees of freedom" 
-        mat tmo_details[1,1] = thres
-        mat tmo_details[2,1] = offdP*100
-        mat tmo_details[3,1] = offdPnocl*100
-        mat tmo_details[4,1] = D
-        mat tmo_details[5,1] = df
-        
+            mat tmo_details = J(5,1,.)
+            mat rowname tmo_details = "Optimal threshold" "% of off-diag in SE est." "% >= threshold (excl. clusters/Conley)" "# outcomes" "Degrees of freedom" 
+            mat tmo_details[1,1] = thres
+            mat tmo_details[2,1] = offdP*100
+            mat tmo_details[3,1] = offdPnocl*100
+            mat tmo_details[4,1] = D
+            mat tmo_details[5,1] = df
+            
+            matrix b = beta
+            matrix V = tmo_se^2
 
-        matrix b = beta
-        matrix V = tmo_se^2
+            matrix colnames b = `x'
+            matrix colnames V = `x'
+            matrix rownames V = `x'
+            
+            local df = df_r
+            ereturn post b V, dof(`df') obs(`nobs') esample(`touse') depname(`depvar')
 
-        matrix colnames b = `x'
-        matrix colnames V = `x'
-        matrix rownames V = `x'
-        
-        local df = df_r
-        ereturn post b V, dof(`df') obs(`nobs') esample(`touse') depname(`depvar')
+            ereturn scalar r2 = `r2'
+            ereturn scalar r2_a = `r2a'
+            ereturn scalar rmse = `rmse'
+            _coef_table_header, nomodeltest title(Linear Regression with TMO)
+            dis ""
+            _coef_table
+            matlist tmo_details, cspec(& %-68s & %9.3f &) rspec(- & & & & & -) coleqonly noblank
 
-        ereturn scalar r2 = `r2'
-        ereturn scalar r2_a = `r2a'
-        ereturn scalar rmse = `rmse'
-        _coef_table_header, nomodeltest title(Linear Regression with TMO)
-        dis ""
-        _coef_table
-        matlist tmo_details, cspec(& %-68s & %9.3f &) rspec(- & & & & & -) coleqonly noblank
+            //ereturn display, level(`level')
+            
+            ereturn scalar beta = beta
+            ereturn scalar orig_se = se
+            ereturn scalar tmo_se = tmo_se
+            ereturn scalar lb = lb
+            ereturn scalar ub = ub
+            ereturn scalar threshold = thres
+            ereturn scalar pct_ge_thres = offdP*100
+            ereturn scalar pct_ge_thres_nocl = offdPnocl*100
+            ereturn scalar T = T
+            ereturn scalar N_loc = N
+            ereturn scalar N_clust = N_clust
+            ereturn scalar N_outcomes = D
+            ereturn scalar N = N_obs
+            ereturn scalar dof = df
+            ereturn scalar finite_sample_dof = dof_adj
+            ereturn scalar df_r = df_r
+            ereturn scalar scpc_cv = ${scpc_cv}
 
-        //ereturn display, level(`level')
-        
-        ereturn scalar beta = beta
-        ereturn scalar orig_se = se
-        ereturn scalar tmo_se = tmo_se
-        ereturn scalar lb = lb
-        ereturn scalar ub = ub
-        ereturn scalar threshold = thres
-        ereturn scalar pct_ge_thres = offdP*100
-        ereturn scalar pct_ge_thres_nocl = offdPnocl*100
-        ereturn scalar T = T
-        ereturn scalar N_loc = N
-        ereturn scalar N_clust = N_clust
-        ereturn scalar N_outcomes = D
-        ereturn scalar N = N_obs
-        ereturn scalar dof = df
-        ereturn scalar finite_sample_dof = dof_adj
-        ereturn scalar df_r = df_r
-        ereturn scalar scpc_cv = ${scpc_cv}
-
-    if "`saveest'"!="" {
-        tmo_save, `savepath'
-    }
-end
-
+        if "`saveest'"!="" {
+            tmo_save, `savepath'
+        }
+    end
 
 
 ***********************
@@ -843,10 +986,24 @@ end
 
 * Function for computing correlation of residuals
 cap mata: mata drop corr_resid()
-mata 
-	void corr_resid(real matrix id, real matrix Res, real scalar misslimit, real matrix CovEpsVec, real matrix DenomVec, real matrix LowTriInd, real matrix id_widerowvec, real matrix id_widecolvec)
+mata
+	void corr_resid(real matrix id,
+                    real matrix Res, 
+                    real matrix Res1, 
+                    real scalar misslimit, 
+                    real matrix CovEpsVec,
+                    real matrix xtilde, 
+                    real matrix id_widerowvec, 
+                    real matrix id_widecolvec, 
+                    real matrix res1_widerowvec, 
+                    real matrix res1_widecolvec, 
+                    real matrix xtilde_widerowvec,
+                    real matrix xtilde_widecolvec,
+                    real scalar N,
+                    |real matrix cluster, 
+                    real matrix same_cl)
 	{
-		real matrix Res_ms, Res_ms_lethres, Res_ms_ind, Res_no_ms, Denom, ResSum_DinBoth, ResMean_DinBoth, ResMeanProd_DinBoth, CovEps, Sum_ResSq_DinBoth, ResSD_DinBoth, DenomCorr
+		real matrix Res_ms, Res_ms_lethres, Res_ms_ind, Res_ms_ind_tr, Res_no_ms, Denom, ResSum_DinBoth, ResMean_DinBoth, ResMeanProd_DinBoth, CovEps, Sum_ResSq_DinBoth, ResSD_DinBoth, DenomCorr, DenomVec, LowTriInd, rowpos, colpos, idx
 		real scalar demean
 
         // Drop outcomes that are missing for more than `misslimit'
@@ -857,15 +1014,17 @@ mata
         // standardize residuals
         Res = Res:-J(rows(Res),1,colsum(Res):/colsum(Res:!=.))
         Res = Res:/J(rows(Res),1,(colsum(Res:^2):/colsum(Res:!=.)):^0.5) // Studentize residuals
+
         assert (sum(abs(colsum(Res)):<1e-5)==cols(Res))
         assert (sum(abs((colsum(Res:^2):/colsum(Res:!=.)):^0.5 :- 1):<1e-5)==cols(Res))
 
         // covariance of residuals -> correlations
         Res_ms_ind = Res:!=. // keep track of missing (0==missing)
+        Res_ms_ind_tr = Res_ms_ind'
         Res_no_ms = editmissing(Res,0) // Res with missing replaced with 0
-        Denom = Res_ms_ind*Res_ms_ind' // number of both nonmissing
-        
-        ResSum_DinBoth = Res_no_ms * Res_ms_ind'
+        Denom = Res_ms_ind*Res_ms_ind_tr // number of both nonmissing        
+
+        ResSum_DinBoth = Res_no_ms * Res_ms_ind_tr
         ResMean_DinBoth = ResSum_DinBoth :/ Denom
         ResMeanProd_DinBoth = ResMean_DinBoth :* ResMean_DinBoth'
         
@@ -877,7 +1036,7 @@ mata
             CovEps = ((Res_no_ms*Res_no_ms'):/Denom)
         }
         
-        Sum_ResSq_DinBoth = (Res_no_ms:^2) * Res_ms_ind'
+        Sum_ResSq_DinBoth = (Res_no_ms:^2) * Res_ms_ind_tr
         ResSD_DinBoth = ((Sum_ResSq_DinBoth:/Denom) + (-2:*ResMean_DinBoth:*(ResSum_DinBoth:/Denom)) + ResMean_DinBoth:^2) :^ 0.5
         
         DenomCorr = ResSD_DinBoth :* ResSD_DinBoth'
@@ -895,6 +1054,7 @@ mata
         _lowertriangle(LowTriInd,1)
         LowTriInd = vec(LowTriInd)
         CovEpsVec = select(CovEpsVec,LowTriInd)
+
         assert (rows(CovEpsVec)==rows(Res)*(rows(Res)+1)/2)
         
         // vectorize Denom
@@ -902,192 +1062,179 @@ mata
         DenomVec = select(DenomVec,LowTriInd)
 
         // store id vectors
-        id_widerowvec = select(vec(J(1,rows(id),id)),LowTriInd)
-	    id_widecolvec = select(vec(J(rows(id),1,id')),LowTriInd)
+        idx     = selectindex(LowTriInd)
+        rowpos  = mod(idx :- 1, N) :+ 1
+        colpos  = floor((idx :- 1) :/ N) :+ 1
+
+        id_widerowvec    = id[rowpos, .]
+        id_widecolvec    = id[colpos, .]
+        res1_widerowvec  = Res1[rowpos, .]
+        res1_widecolvec  = Res1[colpos, .]
+        xtilde_widerowvec  = (rowshape(xtilde,N))[rowpos, .]
+        xtilde_widecolvec  = (rowshape(xtilde,N))[colpos, .]
+        if(args()==15){
+            same_cl  = ((rowshape(cluster,N))[rowpos, .])[.,1]:== ((rowshape(cluster,N))[colpos, .])[.,1]
+        }
 	}
 end
 
 * Function for computing contribution to SE for each pair of locations in cross-sectional case
 cap mata: mata drop sandwich_crosssec()
 mata
-    void sandwich_crosssec(real matrix id_widerowvec, real matrix id_widecolvec, real matrix LowTriInd, real matrix xtilde, real matrix Res1, real matrix ResXtildeVec)
-	{
-		real matrix Xtilde, XtildeVec, ResVec
-		
-		// xx'	
-		Xtilde = xtilde*xtilde'
-		XtildeVec = vec(Xtilde)
-			
-		// off-diag product of residuals for main outcome
-		ResVec = vec(Res1*Res1')		
-		// contribution to SE
-		ResXtildeVec = ResVec:*XtildeVec
-		// create lower diag incl diag
-		ResXtildeVec = select(ResXtildeVec,LowTriInd)
+    void sandwich_crosssec(real matrix id_widerowvec, 
+                           real matrix id_widecolvec,
+                           real matrix res1_widerowvec, 
+                           real matrix res1_widecolvec, 
+                           real matrix xtilde_widerowvec, 
+                           real matrix xtilde_widecolvec, 
+                           real matrix CovEpsVec,
+                           real matrix ResXtildeVec,
+                           real scalar thres,
+                         | real matrix same_cl)
+	{   
+        real matrix IdRes1Xtilde, res_xtide1, keep_th
 
-        // with id numbers
-        ResXtildeVec = id_widerowvec, id_widecolvec, ResXtildeVec
-    }
-end
-
-/* SANDBOX
-cap mata: mata drop sandwich_crosssec()
-mata
-void sandwich_crosssec(real matrix id_widerowvec, real matrix id_widecolvec, real matrix LowTriInd, real matrix xtilde, real matrix Res1, real matrix ResXtildeVec)
-{
-    real scalar N = rows(Res1)
-    real vector ResXtildeVec_tmp = J(rows(LowTriInd), 1, .)
-    real scalar k = 1
-    for (i = 1; i <= N; i++) {
-        for (j = 1; j <= i; j++) {
-            ResXtildeVec_tmp[k] = Res1[i,1] * Res1[j,1] * dot(xtilde[.,i], xtilde[.,j])
-            k++
+        if (args() == 9) {
+            keep_th = abs(CovEpsVec) :>= thres
+            IdRes1Xtilde  = select((id_widerowvec, id_widecolvec, res1_widerowvec, res1_widecolvec, xtilde_widerowvec, xtilde_widecolvec), keep_th)
+            ResXtildeVec  = (IdRes1Xtilde[.,3]:* IdRes1Xtilde[.,4]):*(IdRes1Xtilde[.,5]:* IdRes1Xtilde[.,6])
+            ResXtildeVec  = (IdRes1Xtilde[.,1..2], ResXtildeVec)
+            ResXtildeVec
+        }
+        else{
+            real keep_cl
+            keep_th = (abs(CovEpsVec) :>= thres) :| same_cl
+            IdRes1Xtilde  = select((id_widerowvec, id_widecolvec, res1_widerowvec, res1_widecolvec, xtilde_widerowvec, xtilde_widecolvec, same_cl), keep_th)
+            ResXtildeVec  = (IdRes1Xtilde[.,3]:* IdRes1Xtilde[.,4]):*(IdRes1Xtilde[.,5]:* IdRes1Xtilde[.,6])
+            ResXtildeVec  = (IdRes1Xtilde[.,1], IdRes1Xtilde[.,2], IdRes1Xtilde[.,7], ResXtildeVec)
         }
     }
-    ResXtildeVec = ResXtildeVec_tmp
-}
 end
-*/
 
 * Functions for computing contribution to SE for each pair of locations in panel case
 cap program drop sandwich_panel
-program define sandwich_panel,
-    syntax, rows(int) nloc(int) ntime(int) [NOIsily]
+program define sandwich_panel
+    syntax , clusterOff(int) nloc(int) ntime(int) th(real) [NOIsily]
 
-    clear
-    mata: ResXtildeVec = J(0,3,.)
+    preserve
+    if(`clusterOff') {
+        mata: keep_th = abs(CovEpsVec) :>= `th'
+        local cl=2
+        local colsR1=2*`ntime' + `cl'
+        local colsXtF=`colsR1' + 1
+        local colsXtL=`colsR1' + 2*`ntime' 
+        mata: Mout = J(0,3,.)
+        mata: allSample = select((res1_widerowvec, res1_widecolvec, id_widerowvec, id_widecolvec, xtilde_widerowvec, xtilde_widecolvec), keep_th)
+    }
+    else {
+        mata: keep_th = abs(CovEpsVec) :>= `th' :| same_cl
+        local cl=3
+        local colsR1=2*`ntime' + `cl'
+        local colsXtF=`colsR1' + 1
+        local colsXtL=`colsR1' + 2*`ntime' 
+        mata: Mout = J(0,4,.)
+        mata: allSample = select((res1_widerowvec, res1_widecolvec, id_widerowvec, id_widecolvec, same_cl, xtilde_widerowvec, xtilde_widecolvec), keep_th)
+    }
 
-    * Loop through location-pairs for RAM purposes
-    local itersize = ceil(`rows'/(`nloc'*`ntime'*`ntime'))
-    forv i = 1 (`itersize') `nloc' {
-        clear
+    mata: res1all   = allSample[.,1..`colsR1']
+    mata: xtall     = allSample[.,`colsXtF'..`colsXtL']
+    mata: P         = rows(res1all)
+    mata: st_local("P", strofreal(P, "%12.0f"))
 
-        local start_i = `i'
-		local end_i = min(`i'+`itersize'-1, `nloc')
-        
+    // We replicate the cross-section case in terms of RAM usage
+    local chunk = `P'/`ntime'
+
+    forvalues start = 1(`chunk')`P' {
+        local end = min(`start' + `chunk' - 1, `P')
+
         if "`noisily'"!="" {
-            local donepct = string(`start_i'*100/`nloc', "%5.2f")
+            local donepct = string(`start'*100/`P', "%5.2f")
             di "Computed `donepct'% of sandwich"
         }
-        
-        mata: Ivec = Jvec = T1vec = T2vec = resx_i = J(0,0,.)
-        mata: sandwich_panel_loop(`start_i',`end_i',id,t,id_wide,xtilde_wgt,Res1,Ivec,Jvec,T1vec,T2vec,resx_i)
-
-        gen id1 = .
-        gen id2 = .
-        gen resxx = .
-    
-        qui set obs `obsN'
-        
-        mata: st_store(.,.,(Ivec,Jvec,resx_i))
-        qui drop if id2>id1
-
-        * Collapse contribution to SE across time
-        gcollapse (sum) resxx, by(id1 id2)
-
-        * Append to master
-        mata: ResXtildeVec = ResXtildeVec \ st_data(.,"id1 id2 resxx")
+        mata: sandwich_panel_loop(`start',`end',`ntime', ///
+                                   res1all, xtall, Mout, `cl')
     }
+    mata: ResXtildeVec = Mout
+    mata: st_numscalar("num_pairs", rows(ResXtildeVec))
+    restore
 end
 
 cap mata: mata drop sandwich_panel_loop()
 mata
-     void sandwich_panel_loop(real scalar start_i, real scalar end_i, real matrix id, real matrix t, real matrix id_wide, real matrix xtilde, real matrix Res1, real matrix Ivec, real matrix Jvec, real matrix T1vec, real matrix T2vec, real matrix resx_i)
-	{
-		real matrix ind_row, ind_col, xtilde_i, res_i
+void sandwich_panel_loop(real scalar start_i,
+                         real scalar end_i,
+                         real scalar T,
+                         real matrix Mres1,
+                         real matrix Mxt,
+                         real matrix Mout,
+                         real scalar cl)
+{
+    real colvector Mout1
+    real matrix sub, usub, xsub, x_u, block, rowSumx_u
+    real scalar i, pairT, pair1, pair2
 
-        // Index of I in NT rows
-		ind_row = ((id:>=id_wide[start_i]) + (id:<=id_wide[end_i])) :== 2
-				
-		// Index of J<=I in NT cols
-		ind_col = id:<=id_wide[end_i]
-		
-		// Select i's rows in xtilde and res for y of interest
-		xtilde_i = select(xtilde,ind_row)
-		res_i = select(Res1,ind_row)
-			
-		// Compute product with j cols where j<i
-		xtilde_i = xtilde_i*select(xtilde,ind_col)'
-        res_i = res_i*select(Res1,ind_col)'
-		resx_i = xtilde_i:*res_i
-		
-		// Get id numbers
-		Ivec = vec(J(1,cols(resx_i),select(id,ind_row)))
-		Jvec = vec(J(rows(resx_i),1,select(id,ind_col)'))
-		
-		// Get time periods 
-		T1vec = vec(J(1,cols(resx_i),select(t,ind_row)))
-		T2vec = vec(J(rows(resx_i),1,select(t,ind_col)'))
-		
-		// Vectorize resx
-		resx_i = vec(resx_i)
-		st_local("obsN",strofreal(rows(resx_i),"%50.0f"))
+    pairT= 2*T
+    pair1=pairT + 1
+    pair2=pairT + cl
+
+    sub  = (Mres1)[start_i..end_i, .]
+    usub = sub[., 1..pairT]
+    xsub = Mxt[start_i..end_i , .]
+    x_u  = usub:*xsub
+    rowSumx_u = rowsum(x_u[., T+1..pairT])
+    block = J(rows(x_u), T, .)
+
+    for (i = 1; i <= T; i++) {
+        block[., i] = (x_u[., i] :* rowSumx_u)
     }
+    Mout1 = rowsum(block)
+
+    Mout = Mout \ ( sub[., pair1..pair2], Mout1)
+}
 end
 
 * Function to normalize contribution to SE by 2*[X'X]^-1 and multiply off-diag by 2 (since only lower triangular)
 cap mata: mata drop resxtildenorm()
 mata
-    void resxtildenorm(real matrix ResXtildeVec, real matrix xtilde, real matrix xtilde_wgt)
+    void resxtildenorm(real matrix ResXtildeVec, 
+                       real matrix xtilde_wgt,
+                       real scalar posSW)
 	{
 		real matrix denom, offdiag
+        real colvector v
 
-        denom = 1/(xtilde_wgt'*xtilde)^2
-		offdiag = ResXtildeVec[,1]:!=ResXtildeVec[,2]
-
-        ResXtildeVec[,3] = ResXtildeVec[,3]:*denom
-        ResXtildeVec[,3] = ResXtildeVec[,3] + (ResXtildeVec[,3]:*offdiag)
+        v = ResXtildeVec[.,posSW]
+        denom = 1/(quadcross(xtilde_wgt,xtilde_wgt))^2
+		offdiag = ResXtildeVec[.,1]:!=ResXtildeVec[.,2]
+        ResXtildeVec[.,posSW] = (v :* denom) :* (1 :+ offdiag)
     }
 end
 
 * Function to load Mata data into Stata
 cap program drop load_data
 program define load_data,
-    syntax, nloc(int) [cl1path(str)] [cl2path(str)] [distpath(str)] [savedyad] [filesuffix(str)] [scpcwfin(str)] [scpcy1path(str)] [scpcy2path(str)]
-
-    clear
-
-    mata: st_local("obsN",strofreal(rows(CovEpsVec),"%50.0f"))
-		
-    gen id1=.
-    gen id2=.
-    gen corr=.
-
-    qui set obs `obsN'
-
-    mata: st_store(.,.,(id_widerowvec,id_widecolvec,CovEpsVec))
-
-    qui compress
-    tempfile corr
-    qui save `corr'
+    syntax, nloc(int) clusterOff(int) [distpath(str)] [savedyad] [filesuffix(str)] [scpcwfin(str)] [scpcy1path(str)] [scpcy2path(str)] [corrpath(str)]
 
     clear
     mata: st_local("obsN",strofreal(rows(ResXtildeVec),"%50.0f"))
 
     gen id1=.
     gen id2=.
-    gen xxresxx=.
-
     qui set obs `obsN'
 
+    qui if `clusterOff'==0 {
+        gen same_cl=.
+        replace same_cl=0 if same_cl==.
+    }
+    qui gen xxresxx=.
     mata: st_store(.,.,(ResXtildeVec))
+    qui merge 1:1 id1 id2 using `corrpath', assert(2 3) nogen
 
     qui compress
-    qui merge 1:1 id1 id2 using `corr', assert(2 3) nogen
+
     if _N!=(`nloc'^2+`nloc')/2 {
         di as error "Number of location pairs is incorrect"
         exit
-    }
-
-    if "`cl1path'"!="" {
-        qui merge m:1 id1 using `cl1path', assert(3) nogen
-        qui merge m:1 id2 using `cl2path', assert(3) nogen
-        gen byte same_cl = 0
-        qui ds __tmo_cl1_*
-        foreach var1 in `r(varlist)' {
-            local var2 = subinstr("`var1'","_cl1_","_cl2_",1)
-            qui replace same_cl = 1 if `var1'==`var2'
-        }
     }
 
     if "`distpath'"!="" {
@@ -1100,102 +1247,18 @@ program define load_data,
         qui merge m:1 id2 using `scpcy2path', assert(1 3) nogen
         qui gen ryyr = (Wfin*y_scpc1*y_scpc2)*(1 + (id1!=id2))
     }
-    
+
     * Fisher-transform correlation
     qui count if abs(corr)>1 & !missing(corr)
     if `r(N)'>0 {
         di as error "Correlations <-1 or >1 exist"
         exit
     }
-
-    qui gen corr_fisher = 0.5 * ln((1+corr)/(1-corr))
-    qui compress
     if "`savedyad'"!="" {
         save "`filesuffix'_dyad.dta", replace
     }
 end
 
-* Function to compute degrees of freedom and optimal threshold
-cap program drop dfqt
-program define dfqt
-    syntax, [plotq] [plothist] nbins(int) nloc(int) [filesuffix(str)]
-
-    cap drop offdiag
-    qui gen byte offdiag = !missing(corr) & id1!=id2 & abs(corr)!=1
-
-    qui gstats sum corr_fisher if offdiag
-    scalar sd = (r(p75)-r(p25))/(invnormal(0.75)-invnormal(0.25))
-	scalar df = 1/(sd^2)
-	
-    cap drop corr_fisher_abs 
-    qui gen corr_fisher_abs = abs(corr_fisher)
-    qui replace corr_fisher_abs = . if !offdiag // will be at end
-    qui hashsort corr_fisher_abs
-
-    cap drop cdf_emp_abs_1min cdf_iqr_abs_1min q_iqr_abs
-    qui count if offdiag
-    qui gen cdf_emp_abs_1min = 1 - (_n/`r(N)') if offdiag
-	qui gen cdf_iqr_abs_1min = 1 - 2*(normal(corr_fisher_abs/sd)-0.5) if offdiag
-    qui gen q_iqr_abs = cdf_emp_abs_1min - 2*cdf_iqr_abs_1min if offdiag
-
-    qui sum q_iqr_abs if offdiag
-    qui sum corr_fisher_abs if abs(q_iqr_abs-`r(max)')<=1e-10 & offdiag
-    scalar fthres = `r(min)'
-	scalar thres = tanh(fthres)
-
-    cap drop pdf_iqr
-    qui gen pdf_iqr = normalden(corr_fisher,sd) if offdiag
-    
-    if "`plotq'"!="" {        
-        qui sum corr_fisher_abs if q_iqr_abs>=-0.002 & offdiag
-        local xstart=floor(`r(min)'*10)/10
-        local fthres=fthres
-
-        twoway ///
-                (line q_iqr_abs corr_fisher_abs if q_iqr_abs>=-0.002 & corr_fisher_abs<=1, lcolor(blue) lwidth(medthick) sort(corr_fisher_abs)), ///
-                graphregion(color(white)) ///
-                yline(0, lcolor(gray)) ///
-                xtitle("Threshold {it:{&delta}}") ytitle("") ///
-                ylab(, angle(horizontal) format("%04.3f")) ///
-                xlab(`xstart'(0.1)1, grid gmin gmax format("%02.1f")) ///
-                xline(`fthres', lcolor(red)) ///
-                xsize(16) ysize(9)
-        graph export "`filesuffix'_qt.pdf", as(pdf) replace
-    }
-
-    if "`plothist'"!="" {
-        qui sum corr_fisher if offdiag
-        local binwidth = (`r(max)'-`r(min)')/`nbins'
-        qui gen bin_corr = floor((corr_fisher-`r(min)')/`binwidth') if offdiag
-        qui gen bin_cent = bin_corr*`binwidth' + `binwidth'/2 + `r(min)'
-        qui sum bin_corr if offdiag
-        assert abs(`r(max)'-`nbins')<=1
-        qui hashsort bin_corr corr_fisher
-        qui by bin_corr: gen binN=_N if offdiag
-        qui gen bin_dens = binN/(_N*`binwidth') if offdiag
-        qui gegen byte bin_tag = tag(bin_corr) if offdiag
-        
-        local thres_str = string(thres,"%03.2f")
-        local fthres_str = string(fthres,"%03.2f")
-        local df_str = string(df,"%05.2f")
-        local fthres = fthres
-        
-        twoway 	(bar bin_dens bin_cent if bin_tag==1 & corr_fisher>=-1 & corr_fisher<=1, base(0) barwidth(`binwidth') color(midgreen%30)) ///
-                    (line pdf_iqr corr_fisher if corr_fisher>=-1 & corr_fisher<=1, sort(corr_fisher) lcolor(blue%90)) ///
-                    , graphregion(color(white)) ///
-                    xtitle("Fisher transformed correlation") ///
-                    ytitle("Density") ///
-                    ylab(, format(%02.1f) angle(horizontal)) ///
-                    xlab(-1(0.2)1, format(%02.1f)) ///
-                    xline(0, lcolor(gray) lpattern(longdash)) ///
-                    xline(`fthres', lcolor(red)) ///
-                    xline(-`fthres', lcolor(red)) ///
-                    legend(order(2 "IQR df=`df_str', {it:{&delta}}{sup:*}=`thres_str' (`fthres_str' Fisher transformed)") ///
-                            pos(6) nobox region(color(none))) ///
-                    xsize(16) ysize(9)
-        graph export "`filesuffix'_hist.png", as(png) replace
-    }
-end
 
 * Function to estimate TMO SE
 cap program drop est_tmo_se
@@ -1215,7 +1278,6 @@ program define est_tmo_se,
         scalar df = .
         scalar sd = .
     }
-
     cap confirm var same_cl
     if !_rc {
         local orig_cond (same_cl)
@@ -1264,7 +1326,7 @@ program define est_tmo_se,
     scalar dof_adj = se^2/r(sum)
 
     * TMO SE
-    qui sum xxresxx if ((abs(corr)>=thres) & !missing(corr)) | `keep_cond'
+    qui sum xxresxx
     local xxresxx_sum = r(sum)
     if `scpc'==1 {
         qui sum ryyr if (abs(corr)<thres | missing(corr)) & !`keep_cond'
@@ -1274,7 +1336,6 @@ program define est_tmo_se,
         local ryyr_sum = 0
     }
 	scalar tmo_se = sqrt((`xxresxx_sum'+`ryyr_sum')*dof_adj)
-
     * Store no. off-diag
     qui count if id1!=id2
     scalar offdN = r(N)
@@ -1396,6 +1457,61 @@ program define tmo_over_thres,
 	graph export "`filesuffix'_prop_above_thres.pdf", as(pdf) replace
 end
 
+cap program drop plots_dfqt
+program define plots_dfqt
+    syntax, [plotq] [plothist] nbins(int) nloc(int) [filesuffix(str)]
+
+    if "`plotq'"!="" {        
+        qui sum corr_fisher_abs if q_iqr_abs>=-0.002 & offdiag
+        local xstart=floor(`r(min)'*10)/10
+        local fthres=fthres
+
+        twoway ///
+                (line q_iqr_abs corr_fisher_abs if q_iqr_abs>=-0.002 & corr_fisher_abs<=1, lcolor(blue) lwidth(medthick) sort(corr_fisher_abs)), ///
+                graphregion(color(white)) ///
+                yline(0, lcolor(gray)) ///
+                xtitle("Threshold {it:{&delta}}") ytitle("") ///
+                ylab(, angle(horizontal) format("%04.3f")) ///
+                xlab(`xstart'(0.1)1, grid gmin gmax format("%02.1f")) ///
+                xline(`fthres', lcolor(red)) ///
+                xsize(16) ysize(9)
+        graph export "`filesuffix'_qt.pdf", as(pdf) replace
+    }
+
+    if "`plothist'"!="" {
+        qui sum corr_fisher if offdiag
+        local binwidth = (`r(max)'-(`r(min)'))/`nbins'
+        qui gen bin_corr = floor((corr_fisher-`r(min)')/`binwidth') if offdiag
+        qui gen bin_cent = bin_corr*`binwidth' + `binwidth'/2 + `r(min)'
+        qui sum bin_corr if offdiag
+        assert abs(`r(max)'-`nbins')<=1
+        qui hashsort bin_corr 
+        
+        qui by bin_corr: gen binN=_N if offdiag
+        qui gen bin_dens = binN/(_N*`binwidth') if offdiag
+        qui gegen byte bin_tag = tag(bin_corr) if offdiag
+        
+        local thres_str = string(thres,"%03.2f")
+        local fthres_str = string(fthres,"%03.2f")
+        local df_str = string(df,"%05.2f")
+        local fthres = fthres
+        
+        twoway 	(bar bin_dens bin_cent if bin_tag==1 & corr_fisher>=-1 & corr_fisher<=1, base(0) barwidth(`binwidth') color(midgreen%30)) ///
+                    (line pdf_iqr corr_fisher if corr_fisher>=-1 & corr_fisher<=1, sort(corr_fisher) lcolor(blue%90)) ///
+                    , graphregion(color(white)) ///
+                    xtitle("Fisher transformed correlation") ///
+                    ytitle("Density") ///
+                    ylab(, format(%02.1f) angle(horizontal)) ///
+                    xlab(-1(0.2)1, format(%02.1f)) ///
+                    xline(0, lcolor(gray) lpattern(longdash)) ///
+                    xline(`fthres', lcolor(red)) ///
+                    xline(-`fthres', lcolor(red)) ///
+                    legend(order(2 "IQR df=`df_str', {it:{&delta}}{sup:*}=`thres_str' (`fthres_str' Fisher transformed)") ///
+                            pos(6) nobox region(color(none))) ///
+                    xsize(16) ysize(9)
+        graph export "`filesuffix'_hist.png", as(png) replace
+    }
+end   
 * Function to save TMO results to dta file
 cap program drop tmo_save
 program define tmo_save,

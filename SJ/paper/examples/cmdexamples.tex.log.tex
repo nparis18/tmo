@@ -1,6 +1,6 @@
 . noisily timer on 1
 {\smallskip}
-. qui tmo_NP, cmd(regress PIN_persincpc_d EDU_college_d i.stfips, r) /// 
+. qui tmo, cmd(regress PIN_persincpc_d EDU_college_d i.stfips, r) /// 
 > x(EDU_college_d) ylist(`ylist') i(fips)
 {\smallskip}
 . timer off 1
@@ -8,7 +8,7 @@
 . 
 . timer on 2
 {\smallskip}
-. qui tmo_NP, cmd(reghdfe PIN_persincpc_d EDU_college_d, vce(r) abs(stfip
+. qui tmo, cmd(reghdfe PIN_persincpc_d EDU_college_d, vce(r) abs(stfip
 > s)) /// 
 > x(EDU_college_d) ylist(`ylist') i(fips)
 {\smallskip}
@@ -17,7 +17,7 @@
 . 
 . timer on 3
 {\smallskip}
-. qui tmo_NP, cmd(areg PIN_persincpc_d EDU_college_d, r abs(stfips)) /// 
+. qui tmo, cmd(areg PIN_persincpc_d EDU_college_d, r abs(stfips)) /// 
 > x(EDU_college_d) ylist(`ylist') i(fips)
 {\smallskip}
 . timer off 3

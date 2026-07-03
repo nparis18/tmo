@@ -12,11 +12,14 @@ cap log close
 *-------------------------------------------------------------------------------
 *--- (0) Set up the environment
 *-------------------------------------------------------------------------------
-*global ROOT "/home/dcc213/code/tmo/SJ"
-global ROOT "/Users/MacBook/Dropbox/Research/tmo/SJ"
-global DAT "$ROOT/data"
-global SRC "$ROOT/code"
-global OUT "$ROOT/results/figures"
+*global ROOT "/home/dcc213/code/tmo"
+global ROOT "/Users/MacBook/Dropbox/Research/tmo_all/tmo"
+global DAT "$ROOT/SJ/data"
+global SRC "$ROOT/SJ/code"
+global OUT "$ROOT/SJ/paper/figures"
+global EXA "$ROOT/example"
+global ADO "$ROOT/src"
+global TMP "$ROOT/SJ/temp"
 
 graph set window fontface "Arial Narrow"
 
@@ -99,7 +102,7 @@ graph export "$OUT/Conley.pdf", replace
 *--- (4) Make SCPC map
 *-------------------------------------------------------------------------------
 preserve
-use county_differences, clear
+use "$EXA/county_differences.dta", clear
 rename fips GEOID
 
 tempfile county_differences
@@ -140,19 +143,20 @@ graph export "$OUT/SCPC.pdf", replace
 *--- (5) Make TMO map
 *-------------------------------------------------------------------------------
 preserve
-use "https://raw.githubusercontent.com/wjnkim/tmo/master/example/county_differences.dta", clear
+use "$EXA/county_differences.dta", clear
 
 qui ds fips stfips PIN_persincpc_d EDU_college_d, not
 local ylist `r(varlist)'
 gen weight=1
 
-qui do "/Users/MacBook/Dropbox/Research/tmo/tmo.ado"
+qui do "$ADO/tmo.ado"
+cd "$TMP"
 qui tmo, cmd(reg PIN_persincpc_d EDU_college_d [fw = weight]) x(EDU_college_d) ylist(`ylist') i(fips) savedyad
 scalar thres = e(threshold)
 restore
 
 preserve
-use "/Users/MacBook/Dropbox/Research/tmo/_dyad.dta", clear
+use "$TMP/_dyad.dta", clear
 keep if id2==40143 | id1==40143
 gen idAux = id1 if id1>40143
 replace id1=id2 if id1>40143

@@ -1,0 +1,27 @@
+. use ../example/county_differences
+{\smallskip}
+. qui ds fips stfips PIN_persincpc_d EDU_college_d, not
+{\smallskip}
+. local ylist `r(varlist)'
+{\smallskip}
+. 
+. tmo, cmd(reg PIN_persincpc_d EDU_college_d i.stfips, r) x(EDU_college_d) ylist(`ylist') i(fips)
+{\smallskip}
+Linear Regression with TMO                              Number of obs =  3,060
+                                                        R-squared     = 0.3434
+                                                        Adj R-squared = 0.3434
+                                                        Root MSE      = 0.1409
+{\smallskip}
+\HLI{14}{\TOPT}\HLI{64}
+PIN_persinc{\tytilde}d {\VBAR} Coefficient  Std. err.      t    P>|t|     [95\% conf. interval]
+\HLI{14}{\PLUS}\HLI{64}
+EDU_college_d {\VBAR}   .1745893   .0197081     8.86   0.000     .1359466     .213232
+\HLI{14}{\BOTT}\HLI{64}
+\HLI{79}
+                                                                               
+                                                   Optimal threshold      0.389
+                                            \% of off-diag in SE est.      0.497
+                              \% >= threshold (excl. clusters/Conley)      0.497
+                                                          \# outcomes     90.000
+                                                  Degrees of freedom     59.986
+\HLI{79}

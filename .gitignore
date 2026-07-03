@@ -1,0 +1,21 @@
+# macOS
+.DS_Store
+Icon?
+
+# Stata intermediates
+*.smcl
+_dyad.dta
+SJ/temp/log/
+
+# LaTeX intermediates (keep .bbl for arXiv/SJ submission)
+*.aux
+*.log
+*.out
+*.blg
+*.tag
+*.pp1
+*.synctex.gz
+
+# but keep sjlog example logs used by the paper
+!SJ/paper/examples/*.tex.log
+!SJ/paper/examples/*.log.tex

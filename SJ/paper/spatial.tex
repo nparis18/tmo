@@ -1,0 +1,1566 @@
+%\documentclass{article}[11pt]
+\documentclass[varwidth,bib]{statapress}
+
+
+\usepackage[crop,newcenter,frame]{pagedims}
+\usepackage{sj-2}
+\usepackage{epsfig}
+\usepackage{stata}
+\usepackage{shadow}
+% EDITORS: volume number, issue number, month, and year
+\sjsetissue{$vv$}{$ii$}{$mm$}{$yyyy$}
+
+\usepackage{amsmath}
+\usepackage{bbm}
+\usepackage{amsfonts}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{setspace}
+\usepackage{soul}
+\usepackage{lscape}
+\usepackage{rotating}
+\usepackage{multirow}
+\usepackage{floatrow}
+\usepackage{rotating,capt-of}
+\usepackage{array}
+\usepackage{subcaption}
+%\usepackage[caption=false]{subfig}
+\usepackage{bm}
+\usepackage{bbm}
+\usepackage{url}
+\usepackage{color, colortbl}
+\definecolor{Gray}{gray}{0.9}
+
+
+\usepackage{amsthm}
+\usepackage[stable]{footmisc}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{float}
+\usepackage{subfloat}
+\usepackage{verbatim}
+\usepackage{caption}
+\usepackage{fancyhdr}
+\usepackage{algorithm}
+\usepackage[noend]{algpseudocode}
+%for algorithm
+%\usepackage{algorithm}% http://ctan.org/pkg/algorithms
+%\usepackage{algpseudocode}% http://ctan.org/pkg/algorithmicx
+%\usepackage[ruled,vlined]{algorithm2e}
+
+%to reference notes
+\usepackage{cleveref}
+
+
+\bibliographystyle{sj}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue,
+  citecolor=blue,
+  filecolor=blue,
+  urlcolor=blue
+}
+
+%for arXiv
+        \hypersetup{
+           breaklinks=true,
+           pdfusetitle=true, 
+        }
+        
+\usepackage{natbib}
+
+\DeclareMathOperator*{\argmin}{arg\,min}
+\begin{document}
+
+\inserttype[]{article}
+\author{}{%
+    Stefano DellaVigna \\ UC Berkeley \\  sdellavi@econ.berkeley.edu
+\and
+    Guido Imbens\\Graduate School of Business\\Stanford University \\ imbens@stanford.edu \vspace{4mm} \\ 
+\and
+    Woojin Kim \\ Stanford University \\ wjnkim@stanford.edu
+\and
+    David M. Ritzwoller \\ Stanford University \\ ritzwoll@stanford.edu
+\and
+    Damian Clarke\\Department of Economics \\ University of Chile \\ dclarke@fen.uchile.cl
+\and
+    Nicol\'as Par\'is\\Department of Economics \\ University of Chile \\ nparis@fen.uchile.cl
+}
+%TWO OPTIONS?  Second is riff on Cameron Miller piece
+%\title[Inference with Spatial Dependence]{How to Conduct Inference with Spatial Dependence in Stata}
+\title[Inference with Spatial Dependence]{A Practitioner's Guide to Inference with Spatial Dependence}
+\maketitle
+
+\begin{abstract}
+  In many empirical applications in the social sciences, individuals-level observations interact or are subject to shared shocks across space.  In order to conduct valid statistical inference, such spatial dependence must be accounted for.  While a number of strategies to account for spatial dependence exist, these typically are based on strict assumptions about delimitation of dependence within certain geographic areas (\textit{i.e.}\ clustering), or modelling dependence solely in terms of distance.  In this paper, we discuss these common forms of inference with spatial dependence and their drawbacks, and introduce an alternative form of inference, laid out in \citet{Dellavignaetal2025}, known as Thresholding Multiple Outcomes (TMO).  This procedure for inference models dependence by using information from a range of variables to infer the dependence between units across space, and constructs standard errors and confidence intervals based on such dependence.  We introduce the command {\tt tmo}, which implements these procedures in Stata for a range of linear models including OLS and 2SLS. 
+  \keywords{\inserttag spatial dependence, inference, multiple outcomes, standard errors.}
+\end{abstract}
+
+
+\clearpage
+\section{Introduction}
+Spatial dependence is a common feature of data in the social sciences.  Interactions between individuals in their neighbourhoods, cities, states or other social networks typically imply that individuals cannot be viewed as independent observations in space. And even absent direct interactions between individuals, shared underlying shocks typically occur in areas which are linked across potentially quite broad areas of space, and potentially in quite a complex fashion.  [INCLUDE EXAMPLES]
+
+Such spatial dependence must be accounted for if one wishes to conduct inference on parameters estimated in econometric models.  Variance-covariance estimators in commonly estimated econometric models such as ordinary least squares (OLS) and two stage least squares (2SLS) typically start from the assumption of independence, but must be relaxed to account for more realistic interactions among observations across space. If such adjustments are not made, standard errors will be mis-estimated, generally resulting in standard errors which are too small, and confidence intervals which are too narrow.
+
+In this paper we lay out considerations for conducting inference in models where spatial dependence among observations is suspected.  We discuss a number of existing common procedures and their limitations, and lay out a new procedure for inference with spatial correlation variance which leverages multiple outcome measures.  This procedure, referred to as Thresholding Multiple Outcomes (TMO) is described in \citet{Dellavignaetal2025} (and in this paper), and is accompanied by a Stata routine {\tt tmo} designed for a range of commonly encountered estimation methods in Stata which we document here.
+
+Tools to relax the variance-covariance matrix in \textit{in certain ways} are default in many computational implementations in Stata.  For example, essentially all Stata estimators incorporate heteroscedasticity-robust estimators by default.  And similarly, cluster robust variance allows for \textit{limited} spatial dependence.  This ... \citet{Moulton1986,Moulton1990}.
+
+However, this assumes a very specific form of dependence.  Additional forms of dependence can be explicitly based on distance or `economic distance'. \citet{Conley1999}
+\citet{MullerWatson2022}
+\citet{MullerWatson2022b}
+
+It is reasonable, however, to ask what dependence looks like in practice.  This leads to a new way to estimate spatial dependence:
+\citet{Dellavignaetal2025}.  Note that this considers inference on a parameter of interest.
+
+To see what this looks like, consider a representative county.  Explain Figure \ref{fig:illustration}.
+
+\begin{figure}[htpb!]
+    \centering
+    \caption{Spatial Standard Error Procedures}
+    \label{fig:illustration}
+    \begin{subfigure}{0.45\textwidth}
+        \includegraphics[width=\linewidth]{./figures/state_clustering.pdf}
+      \caption{Clustering by State}
+      \label{fig:sub1}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.45\textwidth}
+      \includegraphics[width=\linewidth]{./figures/Conley.pdf}
+      \caption{Conley}
+      \label{fig:sub2}
+    \end{subfigure}
+
+    \begin{subfigure}{0.45\textwidth}
+        \includegraphics[width=\linewidth]{./figures/SCPC.pdf}
+      \caption{SCPC}
+      \label{fig:sub1}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.45\textwidth}
+      \includegraphics[width=\linewidth]{./figures/tmo.pdf}
+      \caption{TMO}
+      \label{fig:sub2}
+    \end{subfigure}
+  \end{figure}
+
+In this paper we ... Primer on estimating standard errors with spatial dependence in Stata.  Introduce TMO.  Discuss a number of key outcomes in US case.  
+
+Other spatial tools in Stata include...
+
+In what remains of this paper, we begin by describing methods in Section \ref{scn:methods}, first discussing proposals to deal with spatial dependence, before focusing on TMO more generally.  We discuss a Stata command to implement TMO in Section \ref{scn:command}, before documenting a number of examples of the use of this command---{\tt tmo}---in Section \ref{scn:examples}.  Section \ref{scn:discussion} lays out key points of relevance for practitioners and concludes.
+
+\section{Methods}
+\label{scn:methods}
+\subsection{A Simple Bivariate Regression Model}
+Consider estimating a simple bivariate regression model of the type:
+\begin{equation}
+\label{eqn:linmodel}
+Y_{i}=\alpha+\tau W_i + \varepsilon_i,
+\end{equation}
+based on a sample of data $i=1,\ldots, N$, where $Y_i$ is some outcome of interest, $W_i$ some treatment or independent variable of interest and $\varepsilon_i$ an unobserved term.  Assume now that $\mathbb{E}[\varepsilon_i|W_i]=0$. In this setting, the parameters $\alpha$ and $\tau$ can be estimated consistently by ordinary least squares, and denoted $\widehat\alpha$ and $\widehat\tau$ respectively.  Here---and in most empirical settings---we are most interested in the quantity $\widehat\tau$.
+
+While the estimation of $\widehat\tau$ is straightforward, the estimation of the standard error for this estimate hinges upon assumptions about the correlation among residuals $\varepsilon_i$ within the sample.  To see this, note that the standard error is the square root of the following variance term:
+\begin{equation}
+\mathbb{V}(\widehat\tau|W)=(W^\prime W)^{-1}W^\prime\Omega W(W^\prime W)^{-1}.
+\end{equation}
+This depends, crucially, on the matrix $\Omega$ which is an $N\times N$ matrix describing the covariance between each $\varepsilon_i$ in the sample.  The most restrictive assumption about this matrix is that all observations share a common variance, and all observations are independent, or in other words, observations are independent and identically distributed.  In this case, $\Omega$ simplifies to $\sigma^2 I$, with $\sigma^2$ referring to the variance of $Y_i$, and $I$ and $N\times N$ identity matrix.  This leads to the simple variance expression:
+\begin{equation}
+\label{eqn:VarOLS}
+\mathbb{V}(\widehat\tau|W)=\sigma^2(W^\prime W)^{-1},
+\end{equation}
+which is returned as default in computational estimators of \eqref{eqn:linmodel}.
+
+The assumption of a common variance can be loosened quite simply to reflect heteroscedasticity, as laid out in seminal work of \citet{Huber1967,Eicker1967,white80}.  In this case, rather than \eqref{eqn:VarOLS}, the heteroscedasticity-robust analogue:
+\begin{equation}
+\label{eqn:VarHR}
+\widehat{\mathbb{V}}(\widehat\tau \mid W)_H = (W^\prime W)^{-1} \left( \sum_{i=1}^N \widehat\varepsilon_i^2 W_i W_i^\prime \right) (W^\prime W)^{-1}
+\end{equation}
+can be estimated, where $\widehat\varepsilon_i=Y_i-\widehat\alpha-\widehat\tau W_i$.  Again, such a variance estimator is standard in most computational implementations of regression estimators, such as Stata's {\tt robust} option.\footnote{In practice, because of finite sample biases in this estimator, most software packages report finite-sample corrected versions of the heteroscedasticity-robust variance estimator. Stata's {\tt robust} option reports the HC1 estimator by default, which rescales the HC0 matrix in \eqref{eqn:VarHR} by $\tfrac{N}{N-k}$, where $k$ is the number of estimated parameters (2 in this case).  Other common variants include HC2 and HC3, which apply leverage-based corrections to adjust for influential observations \citep[see e.g.][]{MackinnonWhite1985,LongErwin2000}, also available via Stata's {vce()} option.}  However, both \eqref{eqn:VarOLS} and \eqref{eqn:VarHR} are predicated on the assumption that observations are independent, and as such $\varepsilon_i$ and $\varepsilon_j$ are not correlated for all observation pairs $i$ and $j$ where $i\neq j$.   In many cases, this is likely viewed as an unrealistic assumption, and instead some sort of spatial (or other) correlation is presumed to exist between terms $\varepsilon_i$ and $\varepsilon_j$.  In this case, a number of procedures exist to seek to conduct appropriate inference despite such dependence.
+
+\subsubsection{Restricting Elements of $\Omega$}
+A first way to proceed is to note that we can permit limited sorts of spatial dependence by clustering at some aggregate geographic level.  This recognises the importance of intra-group clustering \citep{Moulton1986}, by allowing certain dependence across space within $\Omega$ while restricting elements of $\Omega$ outside of any specific cluster to be 0. In essence, this allows arbitrary correlations within some specific geographical or other boundary, while restricting any dependence across clusters.  Such a case can be viewed schematically in $\Omega_{CR}$ below, for a cluster-robust case assuming a number of blocks, compared to the more restrictive heteroscedasticity-robust option $\Omega_H$.
+\[
+\Omega_{\text{CR}} =
+\begin{bmatrix}
+\varepsilon_1^2 & \varepsilon_1 \varepsilon_2 & 0 & 0 & \cdots & 0 & 0 \\
+\varepsilon_2 \varepsilon_1 & \varepsilon_2^2 & 0 & 0 & \cdots & 0 & 0 \\
+0 & 0 & \varepsilon_3^2 & \varepsilon_3 \varepsilon_4 & \cdots & 0 & 0 \\
+0 & 0 & \varepsilon_4 \varepsilon_3 & \varepsilon_4^2 & \cdots & 0 & 0 \\
+\vdots & \vdots & \vdots & \vdots & \ddots & \vdots & \vdots \\
+0 & 0 & 0 & 0 & \cdots & \varepsilon_{N-1}^2 & \varepsilon_{N-1} \varepsilon_{N} \\
+0 & 0 & 0 & 0 & \cdots & \varepsilon_N \varepsilon_{N-1} & \varepsilon_N^2 \\
+\end{bmatrix}
+\Omega_{\text{H}} =
+\begin{bmatrix}
+\sigma_1^2 & 0 & \cdots & 0 \\
+0 & \sigma_2^2 & \cdots & 0 \\
+\vdots & \vdots & \ddots & \vdots \\
+0 & 0 & \cdots & \sigma_N^2
+\end{bmatrix}
+\]
+
+Inference based on clustering is standard, following \citet{LiangZeger1986,MackinnonWhite1985}, 
+\begin{equation}
+\label{eqn:VarCR}
+\widehat{\mathbb{V}}(\widehat\tau \mid W)_{CR} = (W^\prime W)^{-1} \left( \sum_{g=1}^G W_g^\prime \widehat\varepsilon_g \widehat\varepsilon_g^\prime W_g \right) (W^\prime W)^{-1}
+\end{equation}
+where the $g$ refers to each of the $G$ clusters, $\widehat\varepsilon_g$ a vector of residuals for each cluster,  In practice, Stata's implementation of such cluster-robust variance estimates incorporates a finite sample correction factor, multiplying \eqref{eqn:VarCR} by $\frac{G}{G-1}\frac{N-1}{N-K}$ to correct for the downward bias in standard errors when the number of clusters is small \citep{CameronMiller2015,Rogers1993}.
+
+
+\subsubsection{Distance-based limiting}
+A drawback of such an approach is that spatial dependence is viewed as being sharply demarcated by the borders or limits of clusters.  Another common alternative which seeks to avoid such sharp demarcation at geographic borders instead views spatial dependence in terms of distance.  This approach, proposed by \citet{Conley1999}, allows for residual dependence to decay continuously over space. Rather than imposing a block-diagonal structure in $\Omega$, Conley's estimator permits non-zero covariances between all observations but downweights them by a kernel function of geographic distance, up to some maximum point at which case zero covariance is assumed.
+
+Formally, the Conley variance estimator takes the form:
+\begin{equation}
+\label{eqn:VarConley}
+\widehat{\mathbb{V}}(\widehat\tau \mid W)_{\text{Conley}} = (W^\prime W)^{-1} \left( \sum_{i=1}^N \sum_{j=1}^N K_{ij} \widehat\varepsilon_i \widehat\varepsilon_j W_i W_j^\prime \right) (W^\prime W)^{-1},
+\end{equation}
+where $K_{ij}=K(d_{ij}/b)$ is a kernel function of the distance $d_{ij}$ between units $i$ and $j$, and $b$ is a bandwidth parameter. Typical choices for $K(\cdot)$ include the Bartlett or uniform kernel.\footnote{These are defined respectively as $K(d_{ij}/b) = \mathbbm{1}\{d_{ij} \leq b\}$, which applies equal weight to all pairs within a cutoff distance $b$; and $K(d_{ij}/b) = 1 - d_{ij}/b$ for $d_{ij} \leq b$ and $0$ otherwise, which applies linearly decreasing weights as distance increases.} Intuitively, this estimator treats spatial correlation as strongest between nearby units, either uniformly, or declining smoothly with distance, and ultimately reaching zero beyond a certain cutoff.  We can see intuitively that as $K_{ij}$ decays to zero, the correlation between residuals in \eqref{eqn:VarConley} becomes irrelevant in the variance estimate, as the summation term resolves to 0 when $K{ij}=0$.-
+
+There are also alternative approaches which seek to take such-distance based approaches.  \citet{MullerWatson2022} point out that if observations are not uniform in space, then methods such as \eqref{eqn:VarConley} will not be asymptotically valid, and potentially suffer from size distortions in finite samples which lead to over-rejection of null hypotheses.  Thus, this leads to suggestions as laid out in  \citet{MullerWatson2022,MullerWatson2022b} in which rather than using kernel functions to model the location of units across space, the location of units is modelled based on principal components which capture spatial agglomeration.  They show that this approach offers improved performance in cases where spatial agglomeration of observations occurs, and, when confidence intervals are constructed based on critical values which consider such spatial dependence, can result in large improvements in error rates \citep{MullerWatson2022b}.
+
+\subsubsection{Thresholding Multiple Outcomes}
+\paragraph{Using Multiple Outcomes to Infer Cross-Space Correlations} 
+Ultimately, however, both cluster-robust and distance-based procedures are limiting, either by assuming a strict off-diagonal zero correlation, or by assuming a zero correlation among units beyond some specified cut-off point.  This limitation occurs given that these approaches are based entirely upon modelling spatial correlations by considering how \textit{units} relate across space, rather than considering how outcomes $Y_i$ themselves relate across space.  Thus, a more realistic approach may be to seek to infer geographic dependence by examining the correlation of a range of actual measures over space.  
+
+To this end, \citet{Dellavignaetal2025} introduce Thresholding Multiple Outcomes, or TMO, in which auxiliary measures are used to determine whether correlations exist between particular locations in data.  This requires information on a number $d$ of auxiliary outcomes, which we will denote $Y_i^{(1)}, \ldots, Y_i^{(d)}$.  If such multiple alternative outcomes exist, we can use these measures to assess whether systematic correlation exists between residuals over space.
+
+Namely, each of these outcomes which we will generically refer to as $Y_i^{(j)}$ can themselves be regressed on our outcome of interest in \eqref{eqn:linmodel}.  The residual term from this regression is denoted $\widehat\varepsilon_i^{(j)}$, and this can be normalised to have a variance of 1 as $\tilde\varepsilon_i^{(j)}=\widehat\varepsilon_i^{(j)}/\sqrt{\frac{1}{N}(\widehat\varepsilon_i^{(j)})^2}$.  We will seek to leverage these residuals to determine the correlation of outcomes between locations across space.  To do so, the covariance and the correlation between residuals for some locations $i$ and $i^\prime$ are denoted:
+\begin{equation}
+\widehat\lambda_{i,i^\prime}=\frac{1}{d}\sum_{j=1}^d(\tilde\varepsilon_i^{(j)}-\bar{\varepsilon_i})(\tilde\varepsilon_{i^\prime}^{(j)}-\bar{\varepsilon_{i^\prime}}) \qquad \text{and} \qquad \widehat\rho_{i,i^\prime}=\frac{\widehat\lambda_{i,i^\prime}}{\widehat\lambda_{i,i}\widehat\lambda_{i^\prime,i^\prime}},
+\end{equation}
+where $\bar{\varepsilon_i}=\frac{1}{d}\sum_{j=1}^d\tilde\varepsilon_i^{(j)}$. This quantity $\widehat\rho_{i,i^\prime}$ is of key importance, as it summaries, across all outcomes $d$, the tendency of residuals from observation $i$ and $i^\prime$ to be correlated.
+
+The logic of TMO is that while most pairs of units are not correlated, some will be, and the correlation between auxiliary outcomes $\widehat\rho_{i,i^\prime}$ can be used to determine those observations which are correlated across space.  Specifically, setting some threshold value $\delta$ as the value above which observations are inferred to be meaningfully correlated, we can write $\widehat\Omega$ as:
+\[
+\widehat\Omega = 
+\begin{cases}
+  \widehat\varepsilon_i^{0}\widehat\varepsilon_i^{0} & \text{if } i=i^\prime, \\
+  \widehat\varepsilon_i^{0}\widehat\varepsilon_{i^\prime}^{0} & \text{if } \widehat\rho_{i,i^\prime}\geq\delta, \\
+  0 & \text{if } \widehat\rho_{i,i^\prime}<\delta.
+\end{cases}
+\]
+In essence, this threshold term $\delta$ is used to indicate which units have a systematic correlation between residuals across space, and as such account for this correlation in variance estimates.  Note that previously, off diagonal terms were $\widehat\varepsilon_i^{0}\widehat\varepsilon_{i^\prime}^{0}$ were allowed to be non-zero if they fulfilled specific \textit{geographic} criteria such as sharing a cluster, whereas here with the incorporation of $\delta$, these terms are allowed to be non-zero if \textit{auxiliary outcomes themselves} are observed to be correlated across space.
+
+\citet{Dellavignaetal2025} show that under two assumptions, these procedures result in a consistent variance estimate.  Specifically, these assumptions are referred to as `proportionality' and `sparsity'.  The first of these implies that the covariance of residuals for auxiliary outcomes is informative of the correlation across residuals for the outcome of interest.  And the second assumption implies that there is some limit on the number of units which are actually correlated with any other unit. 
+
+\paragraph{Determining Thresholds for Cross-Space Correlations} Provided that such assumptions are reasonable, the remaining question is what threshold value for $\delta$ should be used as a threshold for determining correlations.  In effect, most pairs of observations will not be correlated (``null pairs''), while some small proportion (``non-nulls'') will be correlated.  Selecting a threshold thus can be viewed as a trade-off between potentially excluding relevant non-nulls (which will understate the variance) and including irrelevant nulls (which will overstate the variance). \citet{Dellavignaetal2025} propose determining the optimal threshold $\delta^\star$ as the value which sets the proportion of misclassification among pairs flagged as being `non-null' at 50\%.  This is a False Discovery Rate (FDR), and implies that if $\delta^{\star}$ were lowered, more than half of the pairs added would actually be null, whereas if $\delta^\star$ were increased, more than half of the pairs removed would actually be non-null.  %Heuristically, the idea behind this threshold selection is that most pairs of outcomes will not be correlated over space, 
+
+Empirically, the value $\delta^\star$ is determined with this trade-off in mind.  In order to resolve this trade-off, we define as $F_0(\cdot)$ the (unknown) distribution function of empirical correlations $\widehat\rho_{i,i^\prime}$ for \textbf{null} pairs of units (we discuss the estimation of this below).  Similarly, we can define as $F^+_0(\cdot)\equiv2(1-F-0(\cdot))$ as the right distribution for the \textit{absolute} correlations $\lvert\widehat\rho_{i,i^\prime}\rvert$.\footnote{Could point to an appendix where we simulate an example and show this in a step-by-step way so readers can easily understand the mechanics...?}  Similarly, we denote as $F^+(\delta)=\Pr(\lvert\widehat\rho_{i,i^\prime}\rvert\geq\delta)$ the right distribution function for absolute correlations for both null and non-null pairs of units (\textit{i.e.} the unconditional distribution). 
+
+We can write the probability that observations whose $\widehat\rho_{i,i^\prime}\geq\delta$ are non-null and null as follows for a specific threshold choice $\delta$:
+\begin{equation}
+\Pr(\text{Non-Null}\big|\ \lvert\widehat\rho_{i,i^\prime}\geq\delta\rvert) = \frac{F^+(\delta)-p_0F_0^+(\delta)}{F^+(\delta)} \qquad \Pr(\text{Null}\big|\ \lvert\widehat\rho_{i,i^\prime}\geq\delta\rvert) = \frac{p_0F_0^+(\delta)}{F^+(\delta)},
+\end{equation}
+where $p_0$ refers to the proportion of pairs of units with a null relationship across space.  We can then take the difference between the probability of observations being null and non-null as proportional to the following:
+\begin{equation}
+Q(\delta)=(F^+(\delta)-p_0F_0^+(\delta))-p_0F_0^+(\delta) = F^+(\delta)-2p_0F_0^+(\delta).
+\end{equation}
+A key property to note with $Q(\delta)$ is that this will increasing in $\delta$ if more nulls are admitted than non-nulls, and decreasing in $\delta$ if more non-nulls are admitted than nulls.  Thus, maximizing $Q(\delta)$ with respects to $\delta$ finds the point at which half the added pairs are null, and half are non-null.
+
+This suggests an (infeasible) criteria to select delta as maximizing the following quantity $\widetilde{Q}$:
+\begin{equation}
+\widetilde{Q}_{N,d}(\delta)=\widehat{F}^+(\delta)-2p_0F_0^+(\delta) \qquad \text{where } \widehat{F}^+(\delta)=\frac{2}{N(N-1)}\sum_{i=1}^N\sum_{i^\prime<i}\mathbbm{1}\{\lvert\widehat\rho_{i,i^\prime}\rvert>\delta\}.
+\end{equation}
+This quantity cannot yet be estimated for two reasons.  Firstly,  while the distribution of both null and non-null pairs can be estimated from data as $\widehat{F}^+(\delta)$, the distribution of just null pairs $\widehat{F}_0^+(\delta)$ is unknown.  And secondly, the proportion of nulls themselves ($p_0$) is also unknown.  In line with the sparsity assumption, the quantity $p_0$ can (conservatively) be set equal to 1.  This leads to a feasible criteria: 
+\begin{equation}
+\label{eqn:objQ}
+\widehat{Q}_{N,d}(\delta)=\widehat{F}^+(\delta)-2F_0^+(\delta),
+\end{equation}
+where the optimal threshold $\delta^\star$ is chosen as the quantity that maximizes \eqref{eqn:objQ}.
+
+Thus, a final step required to actually estimate $\widehat{Q}_{N,d}$ is to estimate the null distribution $F_0(\cdot)$.  This cannot be estimated directly as the distribution of $\widehat\rho_{i,i^\prime}$ given that this distribution will contain both null and non-null pairs.  However, given that most pairs are assumed to actually be null pairs, this leads to the proposal in \citet{Dellavignaetal2025} to estimate this null distribution by fitting a Normal distribution to the central part of the empirical distribution of $\widehat\rho_{i,i^\prime}$ which will overwhelmingly consist of null pairs.  In the interests of completion, if $\Phi_v(\cdot)$ refers to the normal distribution with variance $v$, and $\Phi^{-1}_v(\cdot)$ its inverse, then the interquartile function can be written as $IQR_{v,0}=\Phi^{-1}_v(0.75)-\Phi^{-1}_v(0.25)$. Similarly, defining the empirical distribution of observed correlations as:
+\[
+G_{N,d}(\delta)=\frac{2}{N(N-1)}\sum_{i=1}^N\sum_{i^\prime<i}\mathbbm{1}\{\widehat\rho_{i,i^\prime}<\delta\},
+\]
+we can define the inverse and interquartile range of observed correlations (respectively) as $G^{-1}_{N,d}(\cdot)$ and $\widehat{IQR}=G^{-1}_{N,d}(0.75)-G^{-1}_{N,d}(0.25)$.  The distribution $F^+_0$ is thus estimated by setting $v$ to the quantity which resolves $IQR_{\widehat{v},0}=\widehat{IQR}$.
+
+%TMO adjusts standard errors in settings with spatial dependence without modeling a full covariance structure. Start from your main outcome $Y_i^{(0)}$ and a set of auxiliary outcomes $Y_i^{(1)}$,$\ldots,Y_i^{(d)}$. For each outcome, regress on $W_i$ and compute normalized residuals. The key assumption is that the spatial correlation in the residuals of $Y_i^{(0)}$ is mirrored in those of the auxiliaries. Using the auxiliaries, estimate pairwise correlations across locations and, by comparing their empirical distribution to a null benchmark, choose a threshold $\hat\delta$ that flags ``highly correlated'' pairs.
+
+%Then build $\hat\Sigma^{(0)}(\hat\delta)$: keep the product of residuals for $Y_i^{(0)}$ on the diagonal and for off-diagonal entries only when $|\hat\rho_{i,i’}|\ge \hat\delta^*$. Plug this into the sandwich formula, to obtain spatially robust standard errors.
+
+At the beginning of Section \ref{scn:examples} we will examine an empirical example which steps through each of these steps, in essence considering the estimation of $\widehat\rho_{i,i^\prime}$, $G_{N,d}(\delta)$, $\widehat{v}$, and $\delta^\star$, and resultingly, the standard errors and confidence intervals corresponding to our regression estimate of interest $\widehat\tau$.  Examining this in practice helps to elucidate the steps in both thresholding, and estimating cross-space correlations.  A summarised statement of the entire estimation algorithm as defined in \citet{Dellavignaetal2025} is provided as
+RAlgorithm \ref{alg:TMP} in an Appendix to this article.
+
+\subsection{Alternative Estimators}
+While the above treatment begins with a bivariate linear regression model in \eqref{eqn:linmodel}, the above procedures can quite simply be ...
+
+
+\subsection{Combining TMO with Distance-Based Procedures}
+
+
+
+ \clearpage
+\section{The {\tt tmo} command}
+\label{scn:command}
+\subsection{Syntax}
+The {\tt tmo} command is an e-class command with the following syntax:
+\begin{stsyntax}
+\/
+tmo, cmd({\it cmdline\/}) 
+x(\dunderbar{\it varname}) ylist(\dunderbar{\it varname}) \dunderbar{i}dvar(\dunderbar{\it varname}) \optional{\dunderbar{options}}
+\end{stsyntax}
+\subsection{Options}
+
+\noindent {\tt cmd(\it cmdline\rm )} \it cmdline\rm\ is the command that produces the regression of interest. \rm tmo currently supports regressions using \dunderbar{\tt regress}, \dunderbar{\tt reghdfe}, \dunderbar{\tt ivreg2}, or \dunderbar{\tt ivreghdfe}.
+
+\noindent {\tt x(\dunderbar{\it varname})} Regressor of interest in \tt cmd \rm for which to estimate TMO standard errors. \rm tmo \it estimates the standard error for only this declared independent variable.
+
+\noindent {\tt ylist(\dunderbar{\it varlist})} List of auxiliary outcomes to use in \rm tmo.
+
+\noindent {\tt \dunderbar{i}dvar(\dunderbar{\it varname})} Location identifier variable; must be unique (within each time period for panel case).
+
+\noindent {\tt misslimit(\it \#\rm )} Limit for proportion of observations allowed to be missing for auxiliary outcomes. Auxiliary outcomes missing more than \tt misslimit \rm are not used. Must be between [0,1]; default is 0.1.
+
+\subsubsection*{Panel Setting}
+{\tt timevar(\dunderbar{\it varname})} Time identifier variable; must be declared for panel case.
+
+\subsubsection*{Distance-based Settings}
+\noindent {\tt latitude(\dunderbar{\it varname})} Latitude variable in signed decimal degrees.
+
+\noindent {\tt longitude(\dunderbar{\it varname})} Longitude variable in signed decimal degrees.
+
+{\tt distthreshold(\it \#\rm )} Distance threshold in miles to allow for arbitrary correlation between pairs of locations that are \tt distthreshold \rm or fewer miles apart. Combines \rm tmo \it with a Conley adjustment using a uniform kernel. Requires \tt latitude \rm and \tt longitude.
+
+\subsubsection*{Saving Figures and Tables}
+{\tt filesuffix(\it str\rm )} Folder path and base filename for saving figures and results. Required for \tt plot \rm or \tt save \rm options.
+
+\noindent {\tt savedyad} Save Stata data file with correlation and contribution to standard error for each location pair.
+
+\noindent {\tt plotq} Save plot of optimal threshold estimator.
+
+\noindent {\tt plothist} Save plot for histogram of correlations between locations.
+
+\noindent {\tt plothistnbins(\it \#\rm )} Number of bins for histogram of correlations (default 10000).
+
+\noindent {\tt plotse} Save plot for standard error estimates across thresholds.
+
+\noindent {\tt saveplot seest} Save Stata data file with standard error estimates across thresholds.
+
+\noindent {\tt saveest} Save results in \tt r() \rm to Stata data file.
+
+\subsubsection*{Custom Threshold}
+{\tt threshold(\it \#\rm )} Set custom threshold instead of using the optimal threshold from the interquartile range method. Must be between [0,1].
+
+\noindent {\tt thresholdoff} Turns off the \rm tmo \it adjustment entirely.
+
+\subsubsection*{SCPC Options}
+{\tt scpc\_cmd ({\it cmdline}\rm)} \rm Command for regression of interest before applying SCPC adjustment. Combines \rm tmo  with the SCPC method from M\"uller and Watson (2022).
+
+\noindent {\tt scpc\_uncond} Turns on the unconditional SCPC inference setting.
+\subsubsection{Returned Objects}
+\texttt{tmo} is an e-class command, and stores the following in \texttt{e()}:
+
+Scalars: 
+
+\begin{tabular}{lp{10cm}}        
+      \texttt{e(ATT)}       & Average Treatment Effect on the Treated  \\
+\end{tabular}
+
+Matrices: 
+
+\vspace{3mm}
+\noindent
+The matrices {\tt e(b)} and {\tt e(V)} are included to facilitate the exportation of results from {\tt sdid} with routines such as {\tt estout}.
+
+
+
+\section{Examples}
+\label{scn:examples}
+\subsection{An Illustrative Example: OLS and US counties}
+It is illustrative to view the principles of TMO in a specific empirical setting.  To do so we will consider an example from \citet{Dellavignaetal2025} in which data on county-level outcomes in the USA have been collated.  In particular, consider the model where yyyy is regression on xxxxx, along with state fixed effects.  Below we load...   
+
+
+%Let's explain what we're doing here (eg walk readers through the variables). Point to these data as bundled with the routine.  Show graph with coverage by state over time for an appendix (https://www.jstatsoft.org/article/view/v107i07/4504)?
+
+  \begin{stlog}
+    \input{examples/countyexample.tex.log}
+  \end{stlog}
+
+
+The upper panel reports the conventional OLS results. The lower block summarizes the TMO adjustment. The \textit{Optimal threshold} $\hat\delta$ is a data–driven cutoff for the absolute Fisher–$z$ correlations across locations; pairs with $|\hat\rho_{i,i'}|\ge\hat\delta$ are treated as correlated when constructing $\widehat{\Sigma}^{(0)}(\hat\delta)$. From all the pairs 49\% reports the share of off–diagonal entries retained by this rule, and thus the extent of cross–location dependence incorporated in the variance. When TMO augments clustering or Conley, that records has the additional pairs contributed by TMO beyond the baseline method. In this case we used 90 auxiliary outcomes used to learn the correlation structure, finally the degrees of freedom reports the width of the normal reference used to set $\hat\delta$ (estimated from the interquartile range of Fisher–$z$ correlations).
+
+The figures document the choice of $\hat\delta$. Figure~\ref{fisherCorr} shows the empirical distribution of Fisher–$z$ correlations across locations together with the fitted $N(0,\hat v)$ reference; the dashed vertical lines at $\pm\hat\delta$ indicate which pairs populate the off–diagonal of $\widehat{\Sigma}^{(0)}(\hat\delta)$. Figure~\ref{opThreshol} then plots the threshold objective $\hat Q_{n,d}(\delta)$; the dashed line marks its maximizer at $\hat\delta$ (larger $\delta$ yields a more conservative selection of pairs). The reported standard error is computed as $(W^\top W)^{-1}\!\bigl(W^\top \widehat{\Sigma}^{(0)}(\hat\delta) W\bigr)(W^\top W)^{-1}$.
+  \begin{figure}[H]
+    \caption{Correlations between residuals across US counties}
+    \includegraphics[width=\textwidth]{figures/_hist.png}
+    \label{fisherCorr}
+  \end{figure}
+
+  \begin{figure}[H]
+    \caption{Optimal Thresholding}
+    \includegraphics[width=\textwidth]{figures/_qt.pdf}
+    \label{opThreshol}
+  \end{figure}
+
+
+
+
+
+\subsection{Alternative Models}
+\paragraph{Instrumental Variables}
+\texttt{tmo} can be used with instrumental–variables estimators. Using the same
+cross sectional dataset, we estimate the effect of infant mortality on life expectancy
+instrumenting \texttt{VST\_infmort\_d} with the median distance (in miles) to the
+nearest emergency department, obstetrics department, and pediatric ICU. The \texttt{cmd()} option simply wraps the IV estimator you would normally use; its
+contents follow the \emph{native} syntax of the chosen command. \texttt{tmo} is
+compatible with \texttt{ivreg2}, \texttt{ivreghdfe}, and \texttt{ivregress}. The
+option \texttt{x()} marks the endogenous/treatment variable whose coefficient’s
+variance is to be adjusted, and \texttt{ylist()} supplies the auxiliary outcomes.
+
+\begin{stlog}
+\input{examples/Ivexample.tex.log}
+\end{stlog}
+The output mirrors the cross sectional case: the reported coefficient equals the
+second–stage IV estimate from the underlying command, while the standard error is
+TMO–adjusted; the lower block reports the optimal threshold,  
+\paragraph{Panel Data}
+Panel–ready data are available as \href{https://raw.githubusercontent.com/wjnkim/tmo/master/example/county_panel.dta}{\texttt{county\_panel.dta}} in the project repository on GitHub.
+\smallskip
+
+In panel settings, \texttt{tmo} incorporates the time dimension through the unit and time identifiers specified in \texttt{idvar()} and \texttt{timevar()}. The command treats \(\{i,t\}\) as a panel, reshapes the normalized residuals into an \(N\times T\) array, and computes cross location correlations using all periods. The sandwich matrix is then built from location pairs \((i,i^\prime)\) combined with time pairs, which increases computational cost; accordingly, the program prints progress messages such as ``\texttt{Computed X\% of sandwich}'' as it accumulates contributions by blocks.
+
+\begin{stlog}
+\input{examples/panelexample.tex.log}
+\end{stlog}
+The output is analogous to the cross sectional case. The effective sample size increases because the data expand over time, and the optimal threshold may differ since correlations are constructed using the panel information. All reported fields keep the same interpretation as in the cross sectional setting.
+\paragraph{Other routines}
+Show that original estimator can be implemented by reg, reghdfe, areg.  Perhaps discuss time?  
+
+\begin{stlog}
+\input{examples/cmdexamples.tex.log}
+\end{stlog}
+
+\subsection{Alternative settings}
+\subsubsection{Combining {\tt tmo} with other spatial dependence procedures}
+Show model with just clustered OLS.  Then show with just Conley or Muller and Watson.  Then show just tmo (replicates original).  Now show joining cluster with tmo, and tmo with Muller and watson.
+
+Show output as table with estout.
+
+\subsubsection{Cross-country data and the World Bank Databank}
+Show wbopendata with cross-country.  Democracy and growth??
+
+\section{Discussion and Conclusion}
+\label{scn:discussion}
+
+\clearpage
+
+  \begin{Athanks}
+    We are grateful to \ldots
+    \end{Athanks}
+    
+    \bibliography{sj}
+    
+    \clearpage
+    \begin{aboutauthors}
+    Stefano DellaVigna is \ldots
+
+    Guido Imbens is the Applied Econometrics Professor and Professor of Economics at Stanford Graduate School of Business.
+
+    Woojin Kim is\ldots 
+    
+    David M. Ritzwoller is \ldots
+
+    Damian Clarke is an Associate Professor at The Department of Economics of The Universidad de Chile and the University of Exeter, a Research Fellow at IZA and an Associate at the Millennium Institute for Market Imperfections and Public Policy.  
+    
+
+    Nicol\'as Par\'is is\ldots
+    \end{aboutauthors}
+
+\clearpage
+\appendix
+\section*{Appendix}
+
+
+
+\begin{algorithm}[H]
+\caption{Thresholding Multiple Outcomes (TMO)}
+\label{alg:TMP}
+\begin{algorithmic}[1]
+\Require Outcome $Y_i^{(0)}$ and treatment $W_i$ for units $i=1,\ldots,n$
+\Ensure Estimate of the variance of $\hat\tau^{(0)}$, the least-squares regression coefficient of $Y_i^{(0)}$ on $W_i$
+\State Identify a collection of auxiliary outcomes $Y_i^{(1)},\ldots,Y_i^{(d)}$.
+\State For each unit $i$ and outcome $j$, compute the normalized residuals $\hat\varepsilon_i^{(j)}$
+\State For each pair of units $i\neq i'$, measure the correlation $\hat\rho_{i,i'}$
+\State Approximate the null distribution of $\hat\rho_{i,i'}$ with $\mathrm{N}(0,\hat v)$, where $\hat v$ solves
+\[
+  \Phi_{\hat v}^{-1}(0.75)-\Phi_{\hat v}^{-1}(0.25)
+  \;=\;
+  G_{n,d}^{-1}(0.75)-G_{n,d}^{-1}(0.25),
+\]
+where $\Phi_v(\cdot)$ is the CDF of $\mathrm{N}(0,v)$, and $G_{n,d}(\cdot)$ is defined (paper)
+\State Choose the threshold $\hat\delta^{\ast}$ by minimizing
+\[
+  \hat Q_{n,d}(\delta)
+  \;=\;
+  \bigl(\hat F_{n,d}(\delta)-F_0^{+}(\delta)\bigr) - F_0^{+}(\delta),
+  \qquad \delta>0,
+\]
+where $F_0^{+}(\delta)=2\bigl(1-\Phi_{\hat v}(\cdot)\bigr)$ and $\hat F_{n,d}(\cdot)$ defined in (paper).
+\State Collect the estimates
+\[
+\hat\sigma^{(0)}_{i,i'}(\hat\delta^{\ast}) =
+\begin{cases}
+ \hat\varepsilon_i^{(0)}\,\hat\varepsilon_{i'}^{(0)}, & i=i',\\[4pt]
+ \hat\varepsilon_i^{(0)}\,\hat\varepsilon_{i'}^{(0)}\;\mathbb{I}\{\,|\hat\rho_{i,i'}|\ge \hat\delta^{\ast}\,\}, & i\neq i',
+\end{cases}
+\]
+into the matrix $\hat\Sigma^{(0)}(\hat\delta^{\ast})$.
+\State \textbf{Return} the variance estimate
+\[
+\hat V(\hat\delta^{\ast})
+=
+\bigl(W^{\top}W\bigr)^{-1}
+\Bigl(W^{\top}\,\hat\Sigma^{(0)}(\hat\delta^{\ast})\,W\Bigr)
+\bigl(W^{\top}W\bigr)^{-1}.
+\]
+\end{algorithmic}
+\end{algorithm}
+    
+    \end{document}
+
+\clearpage
+NOTES THAT CAN COME INTO METHOD...
+\paragraph{Why we need them.}
+Ordinary least-squares estimates remain unbiased in the presence of spatially correlated errors, but the usual Eicker–White (heteroskedasticity-robust) variance estimator,
+\(
+\hat V_{\text{White}}=(X'X)^{-1}\!\Bigl(\sum_i\hat u_i^{\,2}X_i'X_i\Bigr)(X'X)^{-1},
+\)
+treats the off-diagonal covariances
+\(\mathrm{cov}(u_i,u_j)\) as zero.  If shocks spread across neighbouring
+counties—weather, health scares, local regulation—this assumption fails
+and $t$-statistics are overstated.  Clustering by large regions
+(e.g.\ states) is a safe alternative, but it sacrifices power when
+correlations decay smoothly with distance rather than stop abruptly at
+state borders.  \citet{Conley1999} proposed a 
+\textbf{heteroskedasticity-and-autocorrelation consistent (HAC) estimator} that
+keeps the efficiency gains from using all observations while still
+producing valid inference.
+
+\paragraph{Basic idea.}
+Let \(d_{ij}\) be the great-circle distance between observational units
+\(i\) and \(j\).\footnote{With latitude-longitude coordinates, \(d_{ij}\)
+is easily computed by the Haversine formula.}
+Define a non-negative kernel weight
+\(w_{ij}=K\!\bigl(d_{ij}/c_n\bigr)\) where \(K(\cdot)\) is
+monotonically decreasing and \(c_n\) is a cut-off (or bandwidth)
+distance that may depend on the sample size \(n\).  Common choices are:
+
+\begin{center}
+\begin{tabular}{lcl}
+\textit{Bartlett} &:&
+\(K(r)=\max\{1-r,\,0\}\)\\
+\textit{Quadratic spectral} &:&
+\(K(r)=\bigl[\,25/(12\pi^2 r^2)\bigr]\bigl[\sin(2\pi r)/(2\pi r)-\cos(2\pi r)\bigr]\mathbf 1\{r<1\}\).
+\end{tabular}
+\end{center}
+
+With OLS residuals $\hat u_i$ the Conley estimator of the variance is
+\[
+\hat\Omega_{\text{Conley}}
+   \;=\;\sum_{i}\sum_{j} w_{ij}\,
+        \hat u_i\hat u_j\,X_i'X_j,
+\qquad
+\hat V_{\text{Conley}}\;=\;(X'X)^{-1}\hat\Omega_{\text{Conley}}(X'X)^{-1}.
+\]
+For \(d_{ij}\!>\!c_n\) the weight is zero, so distant observations
+contribute nothing—mimicking a spatial kernel in time-series HAC
+estimators.
+
+\paragraph{Key assumptions.\protect\footnote{See
+\citet{Conley1999} and \citet{KuersteinerHojman2014} for formal proofs.}}
+\begin{enumerate}
+\item \textbf{Weak spatial dependence}: $\mathrm{cov}(u_i,u_j)$
+      decays to $0$ as $d_{ij}\!\to\!\infty$ (\emph{no global common
+      factors}).
+\item \textbf{Fixed‐range dependence}: there exists
+      $d_0$ such that $\mathrm{cov}(u_i,u_j)=0$ for $d_{ij}\!>\!d_0$.
+      In practice we choose $c_n\!\ge\!d_0$.\footnote{Allowing
+      $c_n\!\to\!\infty$ slowly with $n$ keeps the estimator
+      consistent when $d_0$ is unknown.}
+\item \textbf{Random sampling or large‐$T$ panels}: as $(n,T)\!\to\!\infty$
+      each region’s influence on the variance shrinks.
+\end{enumerate}
+
+Under these conditions
+\(\hat V_{\text{Conley}}\!\xrightarrow{p}\!V\), so Wald statistics built
+with Conley standard errors are asymptotically
+$\mathcal N(0,1)$.
+
+\paragraph{Choosing the cut-off \(c_n\).}
+Theory requires \(c_n\!\to\!0\) relative to the maximum inter-point
+distance but large enough to cover most of the covariance mass.  In
+practice researchers:
+\begin{itemize}\itemsep=0pt
+\item use contextual knowledge (e.g.\ 100 km for county contagion,
+      50 km for commuting spillovers),
+\item report robustness to several plausible radii, or
+\item select \(c_n\) that minimises a leave-one-out cross-validation
+      criterion for squared residual spatial correlation.
+\end{itemize}
+
+\paragraph{Extensions.}
+For panel data let $t$ index years and
+$K\!_{ST}(d_{ij},|t-s|)=K_S(d_{ij}/c_n)\,K_T(|t-s|/\ell_n)$, where
+$\ell_n$ is a temporal bandwidth (Conley
+with time × space dependence).  Special cases—Driscoll–Kraay
+errors for global time correlation and
+Newey–West for pure serial correlation—fit in this product-kernel
+framework.
+
+\paragraph{Relation to clustering.}
+If shocks are believed to be \emph{perfectly} correlated within states
+and uncorrelated across states, clustering by state is the correctly
+specified, and often more conservative, estimator.  When correlation
+decays gradually with distance, Conley typically yields tighter but
+still valid confidence intervals and avoids the researcher’s imposing an
+arbitrary political boundary.
+
+    
+    
+    
+
+  \end{document}
+
+There has been an explosion in recent advances in econometric methods for policy analysis.  A particularly active area is that applied to estimating the impact of exposure to some particular event or policy, when observations are available in a panel or repeated cross section of groups and time (see for example recent surveys by \citet{dCDH2022,Rothetal2022,ArkhangelskyImbens2023} for reviews of these methods).  A modelling challenge in this setting is in determining what would have happened to exposed units had they been left unexposed.  Should such a counterfactual be estimable from underlying data, causal inference can be conducted by comparing  outcomes in treated units to those in theoretical counterfactual untreated states, under the potential outcome framework \citep{Holand1986,Rubin2005}.  
+
+A substantial number of empirical studies in economics and the social sciences more generally seek to estimate effects in this setting using difference-in-difference (hereafter DID) style designs. Here impacts are inferred by comparing treated to control units, where time-invariant level differences between units are permitted as well as general common trends. However, the drawing of causal inferences requires a parallel trend assumption, which states that in the absence of treatment, treated units would have followed parallel paths to untreated units.  Whether this assumption is reasonable in a particular context is an empirical issue.  Recently, a number of methodologies have sought to loosen this assumption.  These include procedures in which counterfactual trends can be assumed to deviate from parallel, leading to partial identification \citep{ManskiPepper2018,RambachanRoth2019}, flexible procedures to adequately control for any prevailing differences between treated and control units \citep{BilinskiHatfield2018}, often based on pre-treatment periods only \citep{Bhulleretal2013,GoodmanBacon2021} and IV-style methods which explicitly consider dynamics in pre-treatment periods \citep{Freyaldenhovenetal2019}.
+
+In many cases, parallel trends may be a questionable modelling assumption. One particular solution to the challenge has been the application of synthetic control (SC) methods.  Early work in synthetic control explores the setting of comparative case studies, where a single treated unit is observed, and one wishes to construct a matched synthetic control from a larger number of potential donor units \citep{AbadieGardeazabal2003,Abadieetal2010,Abadieetal2015}.  These methods seek to generate a single synthetic control from a unique convex weighting of underlying control units, such that this synthetic control is as closely matched as possible to the treated unit in pre-treatment outcomes, and potentially other covariates.  These weights are optimally generated and fixed over time, potentially assigning zero weight to certain control units, and larger weights to others. This has attracted considerable attention in both empirical applications and theoretical extensions, with recent advances including debiasing procedures \citep{BenMichealetal2021} which can additionally house multiple treatment units \citep{AbadieLHour2021}, more flexible weighting schemes, or constant fixed differences between treated and synthetic control units \citep{DoudchenkoImbens2016,FermanPinto2021}.
+
+A recent particularly flexible modelling option which can be applied in panel data settings seeks to bridge the DID and SC procedures.  \citet{Arkhangelskyetal2021} propose the Synthetic Difference-in-Differences (SDID) estimator, which brings in strengths from both the DID and SC methods.  Like DID models, SDID allows for treated and control units to be trending on entirely different levels prior to a reform of interest.  And like SC methods, SDID seeks to optimally generate a matched control unit which considerably loosens the need for parallel trend assumptions.  Correspondingly, SDID avoids common pitfalls in standard DID and SC methods -- namely an inability to estimate causal relationships if parallel trends are not met in aggregate data in the case of DID, and a requirement that the treated unit be housed within a ``convex hull'' of control units in the case of SC.  \citet{Arkhangelskyetal2021} propose estimation and inference procedures, formally proving consistency and asymptotic normality of the proposed estimator.  What's more, the authors briefly discuss a number of important applied points such as how their estimator can incorporate covariates, and how their estimator can be applied to both multiple treatment units, and even multiple treatment units which adopt treatment in different time periods.
+
+In this paper we describe the {\tt sdid} command (available for download as \citet{PailanirClarke2022}) which implements the SDID estimator in Stata.\footnote{This code can be downloaded from the SSC as \texttt{ssc install sdid}.  Additionally, we maintain an open source repository on Github, located at \href{https://github.com/Daniel-Pailanir/sdid}{https://github.com/Daniel-Pailanir/sdid}.  Further examples of use can be found at this repository.}  This command allows for the simple implementation of the SDID estimator provided that a strongly balanced panel or repeated cross section of data is available covering groups and time periods.  The command, written principally in Mata, seamlessly incorporates cases where there is a single treated unit, multiple treatment units, and multiple treatment periods. It reports treatment effects laid out in \citet{Arkhangelskyetal2021}, additionally implementing their proposed bootstrap, jackknife and placebo inference procedures.  A number of graphical output options are provided to examine the generation of the SDID estimator and the underlying optimal weight matrices.  While principally written to conduct SDID estimation, the {\tt sdid} command (and the SDID method) nests as possible estimation procedures SC and DID, which can be easily generated to allow comparison of estimation procedures and estimates.\footnote{Code from the original paper was provided in R \citep{HirshbergND}, which can do many of the procedures which {\tt sdid} implements, and indeed, abstracting from differences in pseudo-random number generation, give identical results in cases where similar procedures are possible. A number of useful extensions are available in {\tt sdid}, such as the implementation of estimates in cases where treatment occurs in multiple periods, and alternative manners to include covariates.}  The {\tt sdid} command is written in a computationally efficient way, largely implemented in Mata and adopting effective optimization algorithms.  For this reason, although its main use is likely in implementing SDID methods, it is potentially a useful tool for standard synthetic control estimation and inference.
+
+Stata provides a rich environment for panel-based analysis in DID and SC settings, and it is useful to understand how {\tt sdid} both compares to and differs from the tools currently available.  From the side of synthetic control methods, a range of powerful packages exist for implementation.  This includes the original {\tt synth} package \citep{Abadieetal2011}, as well as {\tt synth\_runner} \citep{GalianiQuistorff2017} which allows for the additional implementation of placebo tests permuting treatment assignment, {\tt synth2} which simplifies syntax for permutation tests including placebo tests permuting treatment time \citep{YanChen2023}, and recent extensions to synthetic control methods such as {\tt scul} \citep{Greathouse2022} which implements synthetic control with a LASSO selector and {\tt allsynth} which implements bias correction methods \citep{Wiltshire2022}.  What {\tt sdid} shares with these packages for standard synthetic control implementation is a manner to very simply implement synthetic control methods, and additionally an ability to conduct permutation inference.  What {\tt sdid} does not provide out of the box is an ability to conduct placebo inference based on permutation of treatment times, or recent modeling extensions implemented in {\tt allsynth} and {\tt scul}.  From the side of difference-in-differences methods, many recent innovations exist including Stata's native {\tt didregress}, {\tt xtdidregress}, and {\tt hdidregress} commands, and user-written commands which implement a range of heterogeneity-robust DID based estimators including {\tt did\_multiplegt} \citep{deChaisemartinetal2019}, {\tt csdid} \citep{RiosAvilaetal2021}, {\tt did\_imputation} \citep{Borusyak2021}, {\tt eventstudyinteract} \citep{Sun2021}, xtevent \citep{Freyaldenhovenetal2021}, {\tt stackedev} \citep{Beliberg2021} and {\tt jwdid} \citep{RiosAvila2022} as well as traditional event-study designs such as {\tt eventdd} \citet{ClarkeTapia2021}.  What {\tt sdid} shares with these packages for difference-in-differences estimation is an ability to estimate parameters and conduct inference accounting for time-varying roll-out in the presence of heterogenous treatment effects in a valid way.  What  {\tt sdid} does not provide and many of these routines do provide is a way to generate \emph{a single set} of dynamic estimates and confidence intervals which are robust to time-varying events and temporally heterogeneous treatment effects.  Beyond its functionality for implementing both SC and DID, {\tt sdid}'s principal contribution is that it allows for estimation, inference and visualisation for SDID, which is not available elsewhere.
+
+In introducing the {\tt sdid} command in what remains of this paper, we first provide a primer on the core methodological points of SDID (as well as comparisons to DID and SC), and then describe how these procedures extend to a setting where treatment adoption occurs over multiple time periods.  We then lay out the command syntax of {\tt sdid}, as well as the elements which are returned to the user.  We provide a number of examples to illustrate the use of the SDID method in Stata, both based upon a well-known example of California's passage of Proposition 99, an anti-smoking measure previously presented in \citet{Abadieetal2010,Arkhangelskyetal2021} in which a single state adopts a treatment at a given time, as well as an example where exposure to a policy occurs at mutiple periods: the case of parliamentary gender quotas studied by \citet{Bhalotraetal2022}.  We conclude by making a number of practical points on the computational implementation of this estimator, and briefly discussing potential future areas of work.
+
+
+\section{Methods}
+\label{scn:methods}
+\subsection{The Canonical Synthetic Difference-in-Differences Procedure}
+The synthetic DID procedure, hereafter SDID, is developed in \citet{Arkhangelskyetal2021}, and we lay out principal details here.  As input, SDID requires a balanced panel of $N$ units or groups, observed over $T$ time periods.  An outcome, denoted $Y_{it}$, is observed for each unit $i$ in each period $t$. Some, but not all, of these observations are treated with a specific binary variable of interest, denoted $W_{it}$.  This treatment variable $W_{it}=1$ if observation $i$ is treated by time $t$, otherwise, $W_{it}=0$ indicates that unit $i$ is untreated at time $t$.  Here, we assume that there is a single adoption period for treated units, which \citet{Arkhangelskyetal2021} refer to as a `block treatment assignment'.  In section \ref{sscn:SAD}, we extend this to a `staggered adoption design' \citep{AtheyImbens2022}, where treated units adopt treatment at varying points.  A key element of both of these designs is that once treated, units are assumed to remain exposed to treatment forever thereafter.  In the particular setting of SDID, no always treated units can be included in estimation.  For estimation to proceed, we require at least two pre-treatment periods off of which to determine control units. In practice, for generating good matched controls, a larger number of pre-treatment periods are required (refer to discussion in Section \ref{scn:discussion}).
+
+The goal of SDID is to consistently estimate the causal effect of receipt of policy or treatment $W_{it}$, (an average treatment effect on the treated, or ATT) even if we do not believe in the parallel trends assumption between all treatment and control units on average.  Estimation of the ATT proceeds as follows: 
+\begin{equation}
+    \label{eqn:sdid}
+    \left(\widehat\tau^{sdid},\widehat\mu,\widehat\alpha,\widehat\beta\right)=\argmin_{\tau,\mu,\alpha,\beta}\left\{\sum_{i=1}^N\sum_{t=1}^T(Y_{it}-\mu-\alpha_i-\beta_t-W_{it}\tau)^2\widehat\omega^{sdid}_i\widehat\lambda^{sdid}_t \right\}
+\end{equation}
+where the estimand is the ATT, generated from a two-way fixed effect regression, with optimally chosen weights $\widehat\omega^{sdid}_i$ and $\widehat\lambda^{sdid}_t$ discussed below.  Note that here, this procedure flexibly allows for shared temporal aggregate factors given the estimation of time fixed effects $\beta_t$ and time invariant unit-specific factors given the estimation of unit fixed effects $\alpha_i$.  As is standard in fully saturated fixed-effect models, one $\alpha_i$ and one $\beta_t$ fixed effect are normalized to zero to avoid multi-colinearity.  The presence of unit-fixed effects implies that SDID will simply seek to match treated and control units on pre-treatment trends, and \emph{not} necessarily on both pre-treatment trends and levels, allowing for a constant difference between treatment and control units.
+
+In this setting, it is illustrative to consider how the SDID procedure compares to the traditional synthetic control method of \citet{Abadieetal2010}, as well as the baseline DID procedure.  The standard DID procedure consists of precisely the same two-way fixed effect OLS procedure, simply assigning equal weights to all time periods and groups:
+\begin{equation}
+    \label{eqn:did}
+    \left(\widehat\tau^{did},\widehat\mu,\widehat\alpha,\widehat\beta\right)=\argmin_{\tau,\mu,\alpha,\beta}\left\{\sum_{i=1}^N\sum_{t=1}^T(Y_{it}-\mu-\alpha_i-\beta_t-W_{it}\tau)^2 \right\}.
+\end{equation}
+The synthetic control, on the other hand, maintains optimally chosen unit-specific weights $\omega$ (as laid out below), however does not seek to optimally consider time periods via time weights, and omits unit fixed effects $\alpha_i$ implying that the synthetic control and treated units should maintain approximately equivalent pre-treatment levels, as well as trends.
+\begin{equation}
+    \label{eqn:sc}
+    \left(\widehat\tau^{sc},\widehat\mu,\widehat\beta\right)=\argmin_{\tau,\mu,\beta}\left\{\sum_{i=1}^N\sum_{t=1}^T(Y_{it}-\mu-\beta_t-W_{it}\tau)^2\widehat\omega^{sc}_i \right\}
+\end{equation}
+From (\ref{eqn:did})-(\ref{eqn:sc}) it is clear that the SDID procedure offers greater flexibility than both the DID and SC procedures; in the case of DID by permitting a violation of parallel trends in aggregate data, and in the case of SC, by both additionally seeking to optimally weight time periods when considering counterfactual outcomes, and allowing for level differences between treatment and control groups.
+
+The selection of unit weights, $\omega$, as inputs to (\ref{eqn:sdid}) (and (\ref{eqn:sc})) seeks to ensure that comparison is made between treated units and controls which were approximately following parallel trends prior to the adoption of treatments.  The selection of time weights, $\lambda$ in the case of SDID seeks to draw more weight from pre-treatment periods which are more similar to post-treatment periods, in the sense of finding a constant difference between each control unit's post treatment average, and pre-treatment weighted averages across all selected controls.  Specifically, as laid out in \citet{Arkhangelskyetal2021}, unit-specific weights are found by resolving:  
+%Try to ensure that it is clear that the time weights are just the transposed equivalent of the unit weights, so "parallel trends" is a general idea.
+\begin{eqnarray}
+\label{eqn:omega}
+\left(\widehat\omega_0,\widehat\omega^{sdid}\right)&=&\argmin_{\omega_0\in\mathbb{R},\omega\in\Omega}\sum_{t=1}^{T_{pre}}\left(\omega_0 + \sum_{i=1}^{N_{co}}\omega_iY_{it}-\frac{1}{N_{tr}}\sum_{i=N_{co}+1}^N Y_{it}\right)^2 + \zeta^2 T_{pre}||\omega||^2_2 
+\end{eqnarray}
+\[ \text{ where } \Omega = \left\{ \omega\in\mathbb{R}^N_{+}, \text{ with } \sum_{i=1}^{N_{co}}\omega_i=1 \text{ and } \omega_i = \frac{1}{N_{tr}} \text{ for all } i=N_{co}+1,\ldots, N \right\}, \]
+$||\omega||_2$ refers to the Euclidean norm and $\zeta$ is a regularization parameter laid out in \citet[pp.\ 4091-4092]{Arkhangelskyetal2021}. For the sake of completion, this regularization parameter is calculated as $\zeta = (N_{tr}\times T_{post})^{1/4}\widehat\sigma,$ where:
+\begin{eqnarray}
+\widehat\sigma^2&=&\frac{1}{N_{co}(T_{pre}-1)}\sum_{i=1}^{N_{co}}\sum_{t=1}^{T_{pre}-1}(\Delta_{it}-\bar{\Delta})^2, \ \Delta_{it}=Y_{i,(t+1)}-Y_{it}, \label{foot:zeta} \\ &&\text{ and } \bar{\Delta}=\frac{1}{N_{co}(T_{pre}-1)}\sum_{i=1}^{N_{co}}\sum_{t=1}^{T_{pre}-1}\Delta_{it}. \nonumber
+\end{eqnarray}
+This regularization parameter is shown to be theoretically motivated and have good performance in \citep{Arkhangelskyetal2021}, and as such is adopted by default in {\tt sdid}, but options allow for this parameter to be varied.  
+
+This procedure leads to a vector of $N_{co}$ non-negative weights plus an intercept $\omega_0$.  The weights $\omega_i$ for all $i\in\{1,\ldots,N_{co}\}$ imply that absolute difference between control and treatment trends units should be minimized over all pre-treatment periods, while $\omega_0$ initially allows for a constant difference between treatment and controls over time.  Together, these imply that units will follow parallel pre-trends, though provided $\omega_0\neq0$, not \emph{identical} pre-trends.
+
+In the case of time weights, a similar procedure is followed, finding weights which minimize the following objective function:
+\begin{eqnarray}
+\label{eqn:lambda}
+\left(\widehat\lambda_0,\widehat\lambda^{sdid}\right)&=&\argmin_{\lambda_0\in\mathbb{R},\lambda\in\Lambda}\sum_{i=1}^{N_{co}}\left(\lambda_0 + \sum_{t=1}^{T_{pre}}\lambda_tY_{it}-\frac{1}{T_{post}}\sum_{t=T_{pre}+1}^T Y_{it}\right)^2 + \zeta^2 N_{co}||\lambda||^2 
+\end{eqnarray}
+\[ \text{ where } \Lambda = \left\{ \lambda\in\mathbb{R}^T_{+}, \text{ with } \sum_{t=1}^{T_{pre}}\lambda_t=1 \text{ and } \lambda_t = \frac{1}{T_{post}} \text{ for all } t=T_{pre}+1,\ldots, T \right\}, \]
+where the final term in \eqref{eqn:lambda} is a very small regularization term to ensure uniqueness of time weights, where $\zeta=1\times10^{-6}\widehat\sigma$, and $\widehat\sigma$ is defined as in \eqref{foot:zeta}.  Again, this parameter is adopted by default in computational implementations, but can be adjusted.
+
+This estimation procedure is summarized in \citet[algorithm 1]{Arkhangelskyetal2021}, reproduced in Appendix A1 here for ease of access.  \citet{Arkhangelskyetal2021} also prove that the estimator is asymptotically normal, suggesting that confidence intervals on $\tau$ can be constructed as:
+\[
+\widehat{\tau}^{sdid}\pm z_{\alpha/2}\sqrt{\widehat{V}_\tau},
+\]
+where $z_{\alpha/2}$ refers to the inverse normal density function at percentile $\alpha/2$ should one wish to compute 1-$\alpha$ confidence intervals.  These confidence intervals thus simply require an estimate of the variance of $\tau$, $\widehat{V}_{\tau}$.  \citet{Arkhangelskyetal2021} propose three specific procedures to estimate this variance: a block bootstrap, a jackknife, or a permutation-based approach.
+
+The block (also known as clustered) bootstrap approach, consists of taking some large number, $B$, of bootstrap resamples over units, where units $i$ are the resampled blocks in the block bootstrap procedure. Provided that a given resample does not consist entirely of treated, or entirely of control units, the quantity $\widehat\tau^{sdid}$ is re-estimated, and denoted as $\widehat\tau_{(b)}^{sdid}$ for each bootstrap resample.  The bootstrap variance $\widehat{V}^{(b)}_\tau$ is then calculated  as the variance of resampled estimates $\widehat\tau_{(b)}^{sdid}$ across all $B$ resamples.  The bootstrap algorithm is defined in \citet[algorithm 2]{Arkhangelskyetal2021}, reproduced here in Appendix A1.  This bootstrap procedure is observed in simulation to have particularly good properties, but has two particular drawbacks, justifying alternative inference procedures.  The first is that it may be computationally costly, given that in each bootstrap resample the entire synthetic DID procedure is re-estimated, including the estimation of optimal weights.  This is especially computationally expensive in cases where working with large samples, or where covariates are included, as discussed at more length below.  The second, is that formal proofs of asymptotic normality rely on the number of treated units being large, and as such, estimated variance, and confidence intervals, may be unreliable when the number of treated units is small.  
+
+An alternative estimator which significantly reduces the computational burden inherent in the bootstrap is estimating a jackknife variance for $\widehat\tau^{sdid}$.  This procedure consists of iterating over all units in the data, in each iteration removing the given unit, and recalculating $\widehat\tau^{sdid}$, denoted $\widehat\tau_{(-i)}^{sdid}$, \emph{maintaining fixed} the optimal weights for $\omega$ and $\lambda$ calculated in the original SDID estimate.  The jackknife variance, $\widehat{V}^{(jack)}_\tau$ is then calculated based on the variance of all $\widehat\tau_{(-i)}^{sdid}$ estimates, following \citet[Algorithm 3]{Arkhangelskyetal2021} (refer to Appendix A1 here). In this case, each iteration saves on recalculating optimal weights, and as documented by \citet{Arkhangelskyetal2021}, provide a variance leading to conservative confidence intervals, without the computational burden imposed by the bootstrap.  Once again, asymptotic normality relies on there being a large number of treated units, and in particular if only 1 treated unit is observed -- as is often the case in comparative case studies -- the jackknife will not even be defined given that a $\widehat\tau_{(-i)}^{sdid}$ term will be undefined when removing the single treated unit.
+
+Given limits to these inference options when the number of treated units is small, an alternative placebo, or permutation-based, inference procedure is proposed.  This consists of, first, conserving just the control units, and then randomly assigning the same treatment structure to these control units, as a placebo treatment.  Based on this placebo treatment, we then re-estimate $\widehat\tau^{sdid}$, denoted $\widehat\tau_{(p)}^{sdid}$.  This procedure is repeated many times, giving rise to a vector of estimates $\widehat\tau_{(p)}^{sdid}$, and the placebo variance, $\widehat{V}^{(placebo)}_\tau$, can be estimated as the variance of this vector.  This is formally defined in \citet[algorithm 4]{Arkhangelskyetal2021}, and Appendix A1 here.  It is important to note that in the case of this placebo-based variance, homoskedasticity across units is required, given that the variance is based off placebo assignments of treatment made only within the control group.
+
+
+\subsection{Conditioning on Covariates}
+\label{sscn:controls}
+So far,	we have	limited	exposition to cases where one wishes to study outcomes $Y_{it}$, and their evolution in treated and synthetic control units.  However, in certain settings, it may be	of relevance to	condition on exogenous time-varying covariates $X_{it}$.  \citet{Arkhangelskyetal2021} note that in this case, we can proceed by applying the SDID algorithm to the residuals calculated as:
+\begin{equation}
+    \label{eqn:covariates}
+    Y_{it}^{res} = Y_{it}-X_{it}\widehat\beta,
+\end{equation}
+where $\widehat\beta$ comes from regression of $Y_{it}$ on $X_{it}$. This procedure, in which the SDID process will be applied to the residuals $Y_{it}^{res}$, is different to the logic of synthetic controls following \citet{Abadieetal2010}. In \citeauthor{Abadieetal2010}'s conception, when covariates are included the synthetic control is chosen to ensure that these covariates are as closely matched as possible between treated and synthetic control units.  However in the SDID conception, covariate adjustment is viewed as a pre-processing task, which removes the impact of changes in covariates from the outcome $Y_{it}$ prior to calculating the synthetic control.  Along with their paper, \citet{Arkhangelskyetal2021} provide an implementation of their algorithm in R \citep{HirshbergND}, and in practice they condition out these variables $X_{it}$ by finding $\widehat\beta$ within an optimization procedure which additionally allows for the efficient calculation of optimal weights $\omega$ and $\lambda$.  In the \texttt{sdid} code described below, we follow \citet{HirshbergND} in implementing this efficient optimization procedure (the \citet{FrankWolfe1956} solver), however there are a number of potential complications which can arise in this manner of dealing with covariates, and as such, alternative procedures are also available.
+
+A first potential issue is purely numerical.  In the Frank-Wolfe solver discussed above, a minimum point is assumed to be found when successive iterations of the solver lead to arbitrarily small changes in all parameters estimated.\footnote{In the case of convex functions such as that in (\ref{eqn:sdid}), the Frank-Wolfe solver finds a global minima, see for example \citet{Lawphongpanich2009}.}  Where these parameters include coefficients on covariates, in extreme cases the solution found for (\ref{eqn:sdid}) can be sensitive to the scaling of covariates.  This occurs in particular when covariates have very large magnitudes and variances.  In such cases, the inclusion of covariates in (\ref{eqn:sdid}) can cause optimization routines to suggest solutions which are not actually globally optimal, given that successive movements in $\widehat\beta$ can be very small.  In extreme cases, this can imply that when multiplying all variables $X_{it}$ by a large constant values, the estimated treatment effect can vary.  While this issue can be addressed by using smaller tolerances for defining stopping rules in the optimization procedure, it can be addressed in a more simple way if all covariates are first re-standardized as Z-scores, implying that no very-high-variance variables are included, while capturing the same underlying variation in covariates.  
+
+%A first, simple, issue is that given that covariates above are calculated based on an iterative optimization procedure where optima are assumed met when successive iterations suggest arbitrarily changes in all weights and covariates.  If covariates have very large magnitudes and variance, their inclusion can cause optimization routines to reach preliminary optimal points given that successive movements in $\widehat\beta$ can be very small.  In extreme cases, this can imply that when multiplying all variables $X_{it}$ by a large constant values, the estimated treatment effect can vary.  While this can be addressed by using smaller criteria for concluding that an optimal point has been reached, it can be addressed in a more simple way if all covariates are first re-standardized as a Z-scores, implying that no very-high-variance variables are included, while capturing the same underlying variation in covariates.  
+
+A second, potentially more complicated point is described by \citet{Kranz2022}.  He notes that in certain settings, specifically where the relationship between covariates and the outcome vary over time differentially in treatment and control groups, the procedure described above may fail to capture the true relationship between covariates and the outcome of interest, and may subsequently lead to bias in estimated treatment effects.  He proposes a slightly altered methodology of controlling for covariates.  Namely, his suggestion is to first estimate a two-way fixed effect regression of the dependent variable on covariates (plus time and unit fixed effects), using \emph{only} observations which are not exposed, or not exposed yet, to treatment, i.e.\ sub-setting to observations for which $W_{it}=0$.  Based on the regression
+$Y_{it} = X_{it}\beta + \mu_i + \lambda_t + \varepsilon_{it}$
+for units with $W_{it}=0$,
+coefficients $\widehat\beta$ estimated by OLS can be used to follow the procedure in (\ref{eqn:covariates}), and SDID can then be conducted.  An additional benefit of this method is that unlike the optimized method described previously, $\widehat\beta$ is calculated in a single step via OLS rather than an interative optimization procedure, which often leads to substantial speed ups in computation time.  
+
+We document these methods based on a number of empirical example in the following section.  It is worth noting that regardless of which procedure one uses, the implementation of SDID follows the suggestion laid out in \citet[footnote 4]{Arkhangelskyetal2021} and (\ref{eqn:covariates}) above.  What varies between the former and the latter procedures discussed here is the manner with which one estimates coefficients on covariates, $\widehat\beta$, in a pre-processing step.
+
+\subsection{The Staggered Adoption Design}
+\label{sscn:SAD}
+The design discussed up to this point assumes block assignment, or that all units are either controls, or are treated in a single unit of time.  However, in \citet[Appendix A]{Arkhangelskyetal2021}, they note that this procedure can be extended to a staggered adoption design, where treated units adopt treatment at varying moments of time. Here we lay out the formal details related to the staggered adoption design, focusing first on estimation of an aggregate treatment effect, and then on extending the three inference procedures laid out previously into a staggered adoption setting.  This proposal is one potential way to deal with staggered adoption settings, though there are other possible manners to proceed -- see for example \citet{BenMichealetal2021}, or \citet[Appendix A]{Arkhangelskyetal2021}.  In cases where the number of pure control units is small, this proposal may not necessarily be very effective given challenges in finding appropriate counterfactuals for each adoption-specific period. 
+
+\paragraph{Estimation} 
+Unlike the block assignment case where a single pre- versus post-treatment date can be used to conduct estimation, in the staggered adoption design, multiple adoption dates are observed.  Consider for example the treatment matrix below, consisting of 8 units, 2 of which (1 and 2) are untreated, while the other 6 are treated, however at varying points.  \[
+\mathbf{W} =
+\begin{pmatrix}
+  & t_1 & t_2 & t_3 & t_4 & t_5 & t_6 & t_7 & t_8\\
+1 &  0  &  0  &  0  &  0  &  0  &  0  &  0  &  0 \\
+2 &  0  &  0  &  0  &  0  &  0  &  0  &  0  &  0 \\
+3 &  0  &  0  &  0  &  0  &  0  &  0  &  1  &  1 \\
+4 &  0  &  0  &  0  &  0  &  0  &  0  &  1  &  1 \\
+5 &  0  &  0  &  0  &  1  &  1  &  1  &  1  &  1 \\
+6 &  0  &  0  &  0  &  1  &  1  &  1  &  1  &  1 \\
+7 &  0  &  0  &  1  &  1  &  1  &  1  &  1  &  1 \\
+8 &  0  &  0  &  1  &  1  &  1  &  1  &  1  &  1 \\
+\end{pmatrix}
+\]
+This single staggered treatment matrix $\mathbf{W}$ can be broken down into adoption date specific matrices, $\mathbf{W}^{1}$, $\mathbf{W}^{2}$ and $\mathbf{W}^{3}$, or generically, $\mathbf{W}^{1}, \ldots, \mathbf{W}^{A}$, where $A$ indicates the number of distinct adoption dates.  Additionally, a row vector $\mathbf{A}$ consisting of $A$ elements contains these distinct adoption periods.  In this specific setting where units first adopt treatment in period $t_3$ (units 7 and 8), $t_4$ (units 5 and 6), and $t_7$ (units 3 and 4), the adoption date vector consists simple of periods 3, 4 and 7.
+\[
+\mathbf{A} = \begin{pmatrix}
+  3 & 4 & 7 
+\end{pmatrix}
+\]
+Finally, adoption-specific matrices $\mathbf{W}^{1}$-$\mathbf{W}^{3}$ simply consist of pure treated units, and units which adopt in this specific period, as below:
+\[
+\mathbf{W}^1 =
+\begin{pmatrix}
+  & t_1 & t_2 & t_3 & t_4 & t_5 & t_6 & t_7 & t_8\\
+1 &  0  &  0  &  0  &  0  &  0  &  0  &  0  &  0 \\
+2 &  0  &  0  &  0  &  0  &  0  &  0  &  0  &  0 \\
+3 &  0  &  0  &  0  &  0  &  0  &  0  &  1  &  1 \\
+4 &  0  &  0  &  0  &  0  &  0  &  0  &  1  &  1 \\
+\end{pmatrix}, 
+\]
+\[
+\mathbf{W}^2 =
+\begin{pmatrix}
+  & t_1 & t_2 & t_3 & t_4 & t_5 & t_6 & t_7 & t_8\\
+1 &  0  &  0  &  0  &  0  &  0  &  0  &  0  &  0 \\
+2 &  0  &  0  &  0  &  0  &  0  &  0  &  0  &  0 \\
+5 &  0  &  0  &  0  &  1  &  1  &  1  &  1  &  1 \\
+6 &  0  &  0  &  0  &  1  &  1  &  1  &  1  &  1 \\
+\end{pmatrix},
+\]
+\[
+\mathbf{W}^3 =
+\begin{pmatrix}
+  & t_1 & t_2 & t_3 & t_4 & t_5 & t_6 & t_7 & t_8\\
+1 &  0  &  0  &  0  &  0  &  0  &  0  &  0  &  0 \\
+2 &  0  &  0  &  0  &  0  &  0  &  0  &  0  &  0 \\
+7 &  0  &  0  &  1  &  1  &  1  &  1  &  1  &  1 \\
+8 &  0  &  0  &  1  &  1  &  1  &  1  &  1  &  1 \\
+\end{pmatrix}.
+\]
+
+As laid out in \citet[Appendix A]{Arkhangelskyetal2021}, the average treatment effect on the treated can then be calculated by applying the synthetic DID estimator to each of these 3 adoption-specific samples, and calculating a weighted average of the three estimators, where weights are assigned based on the relative number of treated units and time periods in each adoption group.  Generically, this ATT is calculated based on adoption-specific SDID estimates as:
+\begin{equation}
+\label{eqn:ATT}
+\widehat{ATT}=\sum_{\text{for } a \in \mathbf{A}}\frac{T_{post}^a}{T_{post}}\times\hat{\tau}^{sdid}_{a}
+\end{equation}
+where $T_{post}$ refers to the total number of post-treatment periods observed in treated units.  This estimation procedures is laid out formally in Algorithm \ref{alg:StaggeredEst} below. %, which is the staggered adoption equivalent of the block assignment algorithm from \citet{Arkhangelskyetal2021}.
+
+Note that in this case, while the parameter interest is likely the treatment effect $ATT$ or adoption specific $\tau^{sdid}_a$ parameters, each adoption period is associated with an optimal unit and time weight vector $\omega^{sdid}_a$ and $\lambda^{sdid}_a$, which can be returned following estimation.
+
+\begin{algorithm}[H]
+\caption{Estimation of the ATT with staggered adoption}
+\label{alg:StaggeredEst}
+Data: \textbf{Y}, \textbf{W}, \textbf{A}. \\
+Result: Point estimate $\widehat{ATT}$ and adoption-specific values $\hat{\tau}^{sdid}_a$, $\hat\omega^{sdid}_a$ and $\hat\lambda^{sdid}_a$ for all a $\in \mathbf{A}$.  \\ \ \\
+%\For{j $\leftarrow$ 1 to A}
+\For{a $\in \mathbf{A}$}
+{
+1. Subset \textbf{Y} and \textbf{W} to units who are pure controls, and who first adopt treatment in period $t=a$. \;
+2. Compute regularization parameter $\zeta$ \;
+3. Compute unit weights $\hat\omega^{sdid}_a$ \;
+4. Compute time weights $\hat\lambda^{sdid}_a$ \;
+5. Compute the SDID estimator via the weighted DID regression \;
+\[\left(\hat\tau^{sdid}_a,\hat\mu_a,\hat\alpha_a,\hat\beta_a\right)=\argmin_{\tau,\mu,\alpha,\beta}\left\{\sum_{i=1}^N\sum_{t=1}^T(Y_{it}-\mu-\alpha_i-\beta_t-W_{it}\tau)^2\widehat\omega^{sdid}_{a,i}\hat\lambda^{sdid}_{a,t} \right\}\]
+}\textbf{end}\\ \ \\
+6. Compute ATT across adoption-specific SDID estimates \\
+\[\widehat{ATT}=\sum_{\text{for } a\in \mathbf{A}}\frac{T_{post}^a}{T_{post}}\times\hat{\tau}^{sdid}_{a}\] \\
+\end{algorithm}
+
+
+\paragraph{Inference}
+In the staggered adoption design, estimated treatment effects are simply a multi-period extension of the underlying SDID algorithm, in each case working with the relevant pure control and treated sub-sample.  Thus, inference can be conducted in the staggered adoption design under similar resample or placebo procedures.  Here we discuss inference following each of the bootstrap, jackknife, or placebo procedures laid out in \citet{Arkhangelskyetal2021}, applied to a staggered adoption setting.  We note that in this design, it is likely the case that one wishes to conduct inference on the treatment effect, ${ATT}$ from (\ref{eqn:ATT}).  Thus in the below, we propose inference details for this estimand, additionally noting that standard errors and confidence intervals on adoption-specific SDID parameters $\tau^{sdid}_a$ come built-in as part of these procedures.
+%DC: Confirm that this is the case...  We do provide standard error for each year-specific estimate, right?
+
+Consider first the case of bootstrap inference.  Suppose that one wishes to estimate standard errors or generate confidence intervals on the global treatment effect $ATT$.  A bootstrap procedure can be conducted based on many clustered bootstrap resamples over the entire initial dataset, where in each case, a resampled ATT estimate $\widehat{ATT}^{b}$ is generated, following Algorithm \ref{alg:StaggeredEst}.  Based on many such resampled estimates, the bootstrap variance can be calculated as the variance of these resamples.  We lay out the bootstrap variance estimate below in Algorithm \ref{alg:BoostrapStaggered}.
+\begin{algorithm}
+\caption{Bootstrap inference in the staggered adoption setting}
+\label{alg:BoostrapStaggered}
+Data: \textbf{Y}, \textbf{W}, \textbf{A}, $B$. \\
+Result: Variance estimator $\widehat{V}_{ATT}^{cb}$.  Additionally, variance for each adoption specific estimate $\widehat{V}_{\tau_a}^{cb}$ for all $a\in\mathbf{A}$. \\ \ \\
+\For{b $\leftarrow$ 1 to B}
+{
+1. Construct a bootstrap dataset $(\mathbf{Y}^{(b)},\mathbf{W}^{(b)},\mathbf{A}^{(b)})$ by sampling $N$ rows of $(\mathbf{Y},\mathbf{W})$ with replacement, and generating $\mathbf{A}$ as the corresponding adoption vector \;
+2. \If{the bootstrap sample has no treated units or no control units} 
+{
+\hspace{0.2cm}Discard resample and go to 1 \;
+}\hspace{0.4cm}\textbf{end}\\ 
+3. Compute SDID estimate $ATT^{(b)}$ following Algorithm \ref{alg:StaggeredEst} based on $(\mathbf{Y}^{(b)},\mathbf{W}^{(b)},\mathbf{A}^{(b)})$.  Similarly, generate a vector of adoption-date specific resampled SDID estimates $\tau_{a}^{(b)}$ for all $a\in\mathbf{A}^{(b)}$ \;
+}\textbf{end}\\ \ \\
+4. Define $\widehat{V}_{ATT}^{cb}=\frac{1}{B}\sum_{b=1}^B\left(\widehat{ATT^{(b)}}-\frac{1}{B}\sum_{b=1}^B\widehat{ATT^{(b)}}\right)^2$.  Similarly, estimate adoption-date specific variances for each $\tau_{a}^{sdid}$ estimate as the variance over each $\tau_{a}^{(b)}$;
+\end{algorithm}
+Note that as in the block treatment design, this bootstrap procedure requires the number of treated units to grow with $N$ within each adoption period.  As such, if a very small number of treated units exist for certain adoption periods, placebo inference is likely preferable.  Similarly, as laid out in the block treatment design, the bootstrap procedure re-estimates optimal weight matrices in each resample, and can be computationally expensive in cases where samples are large.  
+
+An alternative inference procedure, which is less computationally intensive but similarly based on asymptotic arguments with a large number of states, and many treated units, is based on the jackknife.  Here, optimal weight matrices calculated for each adoption-specific estimate $\tau^{sdid}_a$ in Algorithm \ref{alg:StaggeredEst} are treated as fixed, and provided as inputs to a jackknife procedure, described below in Algorithm \ref{alg:jackknifeStaggered}.  Below, these matrices, which consist of weights for each adoption period $a\in\mathbf{A}$, are denoted as $\bm{\omega}$, $\bm{\lambda}$.\footnote{In the case of $\bm{\omega}$, this is an $A\times N_{co}$ matrix, where for each row $a$, the weight assigned to each control unit in this particular adoption period is recorded.  In the case of $\bm{\lambda}$, this is a matrix containing $A$ columns, where each column consists of as many rows as the number of pre-treatment periods to this specific adoption date.  In each cell, the weight assigned to a particular pre-treatment year for each adoption period is recorded.}  Note that in Algorithm \ref{alg:jackknifeStaggered}, notation $(-i)$ refers to a standard jackknife estimator, removing a single state ($i$) in each iteration.  In cases where $i$ refers to a treated unit, the ATT will be calculated removing this particular treated unit.  For this reason, the jackknife estimator will not be defined in cases where any single adoption period has only one treated unit, as in this case, $\widehat\tau_{a}^{(-i)}$ will not be defined.
+\begin{algorithm}
+\caption{Jackknife inference in the staggered adoption setting}
+\label{alg:jackknifeStaggered}
+Inputs: \textbf{Y}, \textbf{W}, \textbf{A}, $\widehat{\bm{\omega}}$, $\widehat{\bm{\lambda}}$, $\widehat{ATT}$. \\
+Result: Variance estimator $\widehat{V}_{ATT}$ \\ \ \\
+\For{i $\leftarrow$ 1 to N}
+{
+1. Compute SDID estimate $ATT^{(-i)}$ following Algorithm \ref{alg:StaggeredEst} based on $(\mathbf{Y}^{(-i)},\mathbf{W}^{(-i)},\mathbf{A}^{})$.  Similarly, generate a vector of adoption-date specific resampled SDID estimates $\tau_{a}^{(-i)}$ for all $a\in\mathbf{A}$\;
+}\textbf{end}\\ \ \\
+2. Compute $\widehat{V}_{ATT}^{jack}=(N-1)N^{-1}\sum_{i=1}^N\left(\widehat{ATT}^{(-i)}-\widehat{ATT}\right)^2$;
+\end{algorithm}
+
+Finally, in cases where the number of treated units is small, and concerns related to the validity of the previous variance estimators exists, the placebo inference procedure defined in algorithm \ref{alg:placeboStaggered} can be used.  Here, this is defined for the staggered adoption case, generalising Algorithm 4 of \citet{Arkhangelskyetal2021}.  To conduct this procedure, placebo treatments are randomly assigned based on the actual treatment structure, however \emph{only} to the control units. Based on these placebo assignments, placebo values for $ATT$ are generated, which can be used to calculate the variance as laid out in Algorithm \ref{alg:placeboStaggered}.  It is important to note that such a procedure will only be feasible in cases where the number of control units is strictly larger than the number of treated units (or hence placebo assignments will not be feasible), and, as laid out in \citet{Arkhangelskyetal2021,ConleyTaber2011}, such a procedure relies on homoskedasticity across units, as otherwise the variance of the treatment effect on the treated could not be inferred from variation in assignment of placebo treatments to control units.
+
+\begin{algorithm}
+\caption{Placebo inference in the staggered adoption}
+\label{alg:placeboStaggered}
+Inputs: $\mathbf{Y}_{co}$, $N_{tr}$, $B$. \\
+Result: Variance estimator $\widehat{V}_{ATT}^{placebo}$ \\ \ \\
+\For{b $\leftarrow$ 1 to B}
+{
+1. Sample $N_{tr}$ out of the $N_{co}$ control units without replacment to `receive the placebo' \;
+2. Construct a placebo treatment matrix $\mathbf{W}^{(b)}_{co}$, for the controls \; 
+3. Compute SDID estimate $ATT^{(b)}$ following algorithm \ref{alg:StaggeredEst} based on $(\mathbf{Y}_{co},\mathbf{W}^{(b)}_{co},\mathbf{A}^{(b)})$ \;
+}\textbf{end}\\ \ \\
+4. Define $\widehat{V}_{ATT}^{placebo}=\frac{1}{B}\sum_{b=1}^B\left(\widehat{ATT^{(b)}}-\frac{1}{B}\sum_{b=1}^B\widehat{ATT^{(b)}}\right)^2$;
+\end{algorithm}
+
+
+%\subsection{Other Considerations}
+%\textcolor{red}{Weighting...?}
+
+\section{The sdid command}
+\label{scn:syntax}
+Synthetic Difference-in-Differences requires for data to be in Stata's long format, organised with a single line per group and time period.  If data is in wide rather than long format, it should be reshaped using Stata's {\tt reshape} command prior to implementing {\tt sdid}.  Once data is in long format Synthetic Difference-in-Differences can be implemented in Stata using the following command syntax:
+
+\begin{stsyntax}
+  sdid {\it depvar groupvar timevar treatment \/}
+  \optif\
+  \optin\
+  ,
+  vce({\it type})
+	\optional{
+	covariates({\it varlist, type})
+	seed({\it \#\/})
+	reps({\it \#\/})
+	method({\it type})
+        zeta\_lambda({\it \#\/})
+        zeta\_omega({\it \#\/})
+        min\_dec({\it \#\/})
+        max\_iter({\it \#\/})
+        level({\it \#\/})
+    graph
+    g1on
+	g1\_opt({\it string\/})
+	g2\_opt({\it string\/})
+	graph\_export({\it string, type\/})
+	msize({\it markersizestyle})
+    unstandardized
+    mattitles
+    verbose
+    returnweights
+    generate({\it string\/})
+	}
+\end{stsyntax}
+\noindent where \emph{depvar} describes the dependent variable in a balanced panel of units (\emph{groupvar}) and time periods (\emph{timevar}).  The variable which indicates units which are treated at each time period, which accumulates over time, is indicated as \emph{treatment}.  Note that here, it is not necessary for users to specify whether the design is a block or staggered adoption design, as this will be inferred based off the data structure.  Optionally, \emph{if} and \emph{in} can be specified, provided that this does not result in imbalance in the panel.  Required and permitted options are discussed below, followed by a description of objects returned by \texttt{sdid}.
+
+
+\subsubsection{Options}
+
+\noindent
+\leftskip 0.1in
+\parindent -0.1in
+
+\texttt{vce({\it type})} is a required option. This must be one of bootstrap, jackknife, placebo or noinference, where in each case inference proceeds following the specified method.  In the case of bootstrap, this is only permitted if greater than one unit is treated.  In the case of jackknife, this is only permitted if greater than one unit is treated in each treatment period (if multiple treatment periods are considered).  In the case of placebo, this requires at least one more control than treated unit to allow for permutations to be constructed.  In each case, inference follows the specific algorithm laid out in \citet{Arkhangelskyetal2021}. We allow the no inference option (noinference) should one wish to simply generate the point estimator.  This is useful if you wish to plot outcome trends without the added computational time associated with inference procedures.
+
+\texttt{covariates({\it varlist, type})} Covariates should be included as a varlist, and if specified, treatment and control units will be adjusted based on covariates in the synthetic difference-in-differences procedure.  Optionally, type may be specified, which indicates how covariate adjustment will occur.  If the type is indicated as ``optimized'' (the default) this will follow the method described in \citet{Arkhangelskyetal2021}, footnote 4, where SDID is applied to the residuals of all units after regression adjustment.  However, this has been observed to be problematic at times (refer to \citet{Kranz2022}), and is also sensitive to optimization if covariates have high dispersion.  Thus, an alternative type is implemented (``projected''), which consists of conducting regression adjustment based on parameters estimated only in untreated units.  This type follows the procedure proposed by \citet{Kranz2022} (xsynth in R), and is observed to be more stable in some implementations (and at times, considerably faster). {\tt sdid} will run simple checks on the covariates indicated and return an error if covariates are constant, to avoid multicolineality.  However, prior to running sdid, you are encouraged to ensure that covariates are not perfectly multicolinear with other covariates and state and year fixed effects, in a simple two-way fixed effect regression.  If perfectly multi-colinear covariates are included sdid will execute without errors, however where type is ``optimized'', the procedure may be sensitive to the inclusion of redundant covariates.
+
+
+\texttt{seed({\it \#\/})} Define the seed for pseudo-random numbers.
+
+\texttt{reps({\it \#\/})} Set the number of repetitions used in the calculation of bootstrap and placebo standard errors. Default is 50 repetitions.  Larger values should be preferred where possible.
+
+\texttt{method({\it type})} this option allows you to change the estimation method. The type must be one of sdid, did or sc, where sdid refers to synthetic difference-in-differences, sc refers to synthetic control, and did refers to difference-in-differences. By default, sdid is enabled.
+
+\texttt{zeta\_omega({\it \#\/})} Value used when defining the regularization term for unit weight calculations.  This value is the quantity prior to the $\widehat\sigma$ term used to calculate $\zeta$ in \eqref{eqn:omega}). Default is $(N_{tr} T_{post})^{1/4}$ as discussed in Section \ref{scn:methods} when {\tt method(sdid)} is implemented.  For other methods, default value is 1e-6.
+
+\texttt{zeta\_lambda({\it \#\/})} Value used when defining the regularization term for time weight calculations.  This value  is the scalar prior to the $\widehat\sigma$ term used to calculate $\zeta$ in \eqref{eqn:lambda}). Default is 1e-6 as discussed  in Section \ref{scn:methods}.  This is only relevant when {\tt method(sdid)} is used, as otherwise time weights are not used.
+
+\texttt{min\_dec({\it \#\/})} Estimation of optimal weights occurs iteratively until a sequential stopping rule is met.  By default, a minimum is assumed when consecutive iterations move by no more than the value indicated in {\tt min\_dec}.  By default, this value is set at 1e-5.
+
+\texttt{max\_iter({\it \#\/})} Defines the maximum number of iterations to be performed when calculating optimal weights.  By default, a maximum of 10,000 iterations will be performed.  Larger values can be set to ensure that a minimum is reached. 
+
+\texttt{graph} if this option is specified, graphs will be displayed showing unit and time weights as well as outcome trends as per Figure 1 from \citet{Arkhangelskyetal2021}.  If \texttt{graph} is indicated, graphs will be produced and displayed on screen for all versions of Stata except Stata(console); if additionally graphs should be saved to disk, the \texttt{graph\_export} option should be used.
+
+\texttt{g1on} this option activates the unit-specific weight graph. By default g1 is off to avoid slow processing in cases where many groups exist.
+
+\texttt{g1\_opt({\it string\/})} option to modify the appearance of the unit-specific weight graph.  These options adjust the underlying scatter plot, so should be consistent with twoway scatter plots.
+
+\texttt{g2\_opt({\it string\/})} option to modify the appearance of the outcome trend graphs.  These options adjust the underlying line plot, so should be consistent with twoway line plots.
+
+\texttt{graph\_export({\it string, type\/})} Graphs will be saved as weightsYYYY and trendsYYYY for each of the unit-specific weights and outcome trends respectively, where YYYY refers to each treatment adoption period.  Two graphs will be generated for each treatment adoption period provided that \texttt{g1on} is specified, otherwise a single graph will be generated for each adoption period. If this option is specified, type must be specified, which refers to a valid Stata graph type (eg ``.eps'', ``.pdf'', or any other options permitted by \texttt{graph\_export}.).  Additionally, if \texttt{type} is specified as ``.gph'' the graph is saved on disk in Stata's ``.gph'' format which permits editing of the graph.  Optionally, a stub can be specified, in which case this will be prepended to exported graph names.
+
+\texttt{level({\it \#\/})} specifies the confidence level, as a percentage, for confidence intervals.  The default is the level set by {\tt set level} (which by default is {\tt level(95)}).
+
+\texttt{msize({\it markersizestyle})} allows you to modify the size of the marker for graph 1.
+
+\texttt{unstandardized} if controls are included and the ``optimized'' method is specified, controls will be standardized as Z-scores prior to finding optimal weights. This avoids problems with optimization when control variables have very high dispersion. If unstandardized is specified, controls will simply be entered in their original units. This option should be used with care.
+
+\texttt{mattitles} requests labels to be added to the returned {\tt e(omega)} weight matrix providing names (in string) for the unit variables which generate the synthetic control group in each case.  If mattitles is not indicated, the returned weight matrix ({\tt e(omega)}) will store these weights with a final column providing the numerical ID of units, where this numerical ID is either taken from the unit variable (if this variable is a numerical format), or arranged in alphabetical order based on the unit variable, if this variable is in string format.
+
+\texttt{verbose} Requests additional output, such as  warnings messages if the number of iterations indicated in {\tt max\_iter} is reached. 
+
+\texttt{returnweights} Indicates that estimated weights $\widehat\omega$ and $\widehat\lambda$ should be returned directly in the dataset corresponding to each unit.  By default, these will be returned as variables named {\tt omegaYYYY} and {\tt lambdaYYYY} where {\tt YYYY} is replaced by treatment adoption periods.  
+
+\texttt{generate({\it string\/})} Specifies that the variables containing omega and lambda weights returned if the {\tt returnweights} option is indicated should be named starting with {\it string}.  If {\tt returnweights} is indicated but {\tt generate} is not indicated, variables will simply follow default naming.
+
+\subsubsection{Returned Objects}
+\texttt{sdid} stores the following in \texttt{e()}:
+
+Scalars: 
+
+\begin{tabular}{lp{10.5cm}}        
+      \texttt{e(ATT)}       & Average Treatment Effect on the Treated  \\
+      \texttt{e(ATT\_l)}    & Left-hand point of confidence interval on ATT (based on {\tt level()}) \\
+      \texttt{e(ATT\_r)}    & Right-hand point of confidence interval on ATT  (based on {\tt level()}) \\
+      \texttt{e(se)}        & Standard error for the ATT  \\
+      \texttt{e(reps)}      & Number of bootstrap/placebo replications \\
+      \texttt{e(N\_clust)}  & Number of units (groups) observed in the original panel used for {\tt sdid} \\
+\end{tabular}
+
+Macros: 
+
+\begin{tabular}{lp{10.5cm}}        
+      \texttt{e(cmd)}       &    Returns command name (sdid)  \\
+      \texttt{e(cmdline)}   &    Returns command as typed \\
+      \texttt{e(depvar)}    &    Lists name of dependent variable \\
+      \texttt{e(vce)}       &    Provide vcetype specified in \texttt{vce()} (placebo, bootstrap, jackknife or noinference) \\
+      \texttt{e(clustvar)}  &    Provides the name of the unit (group) variable\\
+\end{tabular}
+
+Matrices: 
+
+\begin{tabular}{lp{10.5cm}}  			
+      \texttt{e(tau)}        &      tau estimate for each adoption time-period, along with its standard error \\
+      \texttt{e(lambda)}     &     lambda weights (time-specific weights)\\
+      \texttt{e(omega)}      &     omega weights (unit-specific weights)\\
+      \texttt{e(adoption)}   &     A vector containing the list of all treatment adoption times\\
+      \texttt{e(beta)}     &      A vector corresponding to coefficients estimated on covariates included as controls (only returned if the \texttt{covariates} options is used)\\
+      \texttt{e(series)}   &      control and treatment series containing time series trends of outcome means over time\\
+     \texttt{e(difference)}   & Difference between treatment and control series over time \\
+     \texttt{e(b)}        &     Coefficient estimate returned for ATT \\
+     \texttt{e(V)}        &     Variance estimate returned for ATT \\
+\end{tabular} 
+
+\vspace{3mm}
+\noindent
+The matrices {\tt e(b)} and {\tt e(V)} are included to facilite the exportation of results from {\tt sdid} with routines such as {\tt estout}.
+
+
+
+\section{Examples based on an Empirical Application}
+\label{scn:examples}
+In the sections below we provide a number of illustrations of the usage of, and performance of, the {\tt sdid} command, which operationalizes the Synthetic Difference-in-Differences estimator in Stata.  We consider both a block treatment design (with a single adopting state), and a staggered adoption design, noting a number of points covering estimation, inference, and visualization.
+
+\subsection{A Block Design}
+
+\leftskip 0.1in
+\parindent +0.1in
+
+In the first case, we consider the well-known example, also presented in \citet{Arkhangelskyetal2021}, of California's ``Proposition 99'' tobacco control measure.  This example, based on the context described in \citet{Abadieetal2010} and data of \citet{OrzechowskiWalker2005}, is frequently used to illustrate synthetic control style methods.  Proposition 99, which was passed by California in 1989, increased the taxes paid on a packet of cigarettes by 25 cents.  The impact of this reform is sought to be estimated by comparing the evolution of sales of cigarettes in packs per capita in California (the treated state) with those in 38 untreated states, which did not significantly increase cigarette taxes during the study period.
+
+The data used in analysis cover each of these 39 states over the period of 1970--2000, with a single observation for each state and year.  Adoption occurs in California in 1989, implying $T_{pre}=19$ pre-treatment periods and $T_{post}=12$ post-treatment periods.  There are $N_{co}=38$ control and a single treated state, hence $N_{tr}=1$.  Using the \texttt{sdid} command, we replicate the results from \citet{Arkhangelskyetal2021}.  In the below code example, we first download the data, and then conduct the Synthetic Difference-in-Differences implementation using a placebo inference procedure with (a default) 50 placebo iterations.
+
+\begin{stlog}
+    \input{examples/ex1_1.log}
+\end{stlog}
+The third line of this code excerpt quite simply implements the synthetic difference-in-differences estimator, returning identical point estimates to those documented in Table 1 of \citet{Arkhangelskyetal2021}.  Standard errors are slightly different, as these are based on pseudo-random placebo reshuffling, though can be replicated as presented here provided that the same seed is set in the {\tt seed} option.  Note that in this case, given that a small number (1) of treated units is present, placebo inference is the only appropriate procedure, as indicated in the {\tt vce()} option.
+
+\begin{figure}[htpb!]
+\caption{Proposition 99, example from \citet{Abadieetal2010,Arkhangelskyetal2021}}
+\label{fig:sdidplot}
+\subfloat[Unit-Specific Weights]{%
+\includegraphics[width=0.5\textwidth]{./graphs/sdid_weights1989.pdf}%
+}
+\subfloat[Outcome Trends and Time-Specific Weights]{%
+ \includegraphics[width=0.5\textwidth]{./graphs/sdid_trends1989.pdf}%
+}
+\end{figure}
+
+Should we wish to generate the same graphs as in \citet{Arkhangelskyetal2021}, summarizing both (a) unit specific weights, and (b) treatment and synthetic control outcome trends along with time specific weights, this can be requested with the addition of the {\tt graph} option.  This is displayed below, where we additionally modify plot aesthetics via the {\tt g1\_opt()} and {\tt g2\_opt()} options for weight graphs (Figure \ref{fig:sdidplot}(a)), and trend graphs (Figure \ref{fig:sdidplot}(b)) respectively.  Finally, generated graphs can be saved to disk using the {\tt graph\_export()} option, with a graph type (\texttt{.eps} below), and optionally a pre-pended plot name.  Output corresponding to the below command is provided in Figure \ref{fig:sdidplot}.
+
+\begin{stlog}
+. sdid packspercapita state year treated, vce(placebo) seed(1213) graph g1on
+>     g2_opt(ylabel(0(25)150) ytitle("Packs per capita") scheme(sj))
+>     g1_opt(xtitle("") scheme(sj)) graph_export(sdid_, .eps)
+\end{stlog}
+
+%\begin{stlog}
+%    \input{examples/ex2_1.log}
+%\end{stlog}
+
+It is illustrative to compare the output of SDID estimation procedures with those of standard synthetic control methods of \citet{Abadieetal2010}, and unweighted difference-in-difference estimates.  By using the {\tt method()} option one can request a standard difference-in-differences output, requested with {\tt method(did)}, or synthetic control output, requested with {\tt method(sc)}. In the interests of completeness, {\tt method(sdid)} is also accepted, although this is the default behaviour when {\tt method} is not included in command syntax.  In each case, resulting graphs document matched treated and control/synthetic control trends, as well as weights received by each unit and time period.  These are displayed in Figure \ref{fig:californiaplot}, with plots corresponding to each of the three calls to {\tt sdid} displayed below. In the left-hand panel, identical SDID plots are provided as those noted above.  In the middle plot, corresponding to {\tt method(did)}, a difference-in-difference setting is displayed.  Here, in the top panel, outcomes for California are displayed as a solid line, while mean outcomes for all control states are documented as a dashed line, where a clear divergence is observed in the pre-treatment period.  The bottom panel shows that in this case, each control unit receives an identical weight, while time weights indicated at the base of the top plot note that each period is weighted identically.  Finally, in the case of synthetic control, output from the third call to {\tt sdid} is provided in the right-hand panel.  In this case, treated and synthetic control units are observed to overlap nearly exactly, with weights in figure (f) noted to be more sparse, and placing relatively more weight on fewer control states.  We note that in each case, the {\tt vce(noinference)} option is used, as here we are simply interested in observing exported graphs, not the entire command output displaying aggregate estimates, standard errors and confidence intervals. 
+
+\begin{stlog}
+    \input{examples/comparison.log}
+\end{stlog}
+
+\begin{figure}[htpb!]
+\caption{Comparison of estimators}
+\label{fig:californiaplot}
+\subfloat[SDID: Outcome Trends]{%
+ \includegraphics[width=0.33\textwidth]{./graphs/sdid_trends1989.pdf}%
+}
+\subfloat[DID: Outcome Trends]{%
+ \includegraphics[width=0.33\textwidth]{./graphs/did_trends1989.pdf}%
+}
+\subfloat[SC: Outcome Trends]{%
+ \includegraphics[width=0.33\textwidth]{./graphs/sc_trends1989.pdf}%
+}\\
+\subfloat[SDID: Unit-Specific Weights]{%
+\includegraphics[width=0.33\textwidth]{./graphs/sdid_weights1989.pdf}%
+}
+\subfloat[DID: Unit-Specific Weights]{%
+\includegraphics[width=0.33\textwidth]{./graphs/did_weights1989.pdf}%
+}
+\subfloat[SC: Unit-Specific Weights]{%
+\includegraphics[width=0.33\textwidth]{./graphs/sc_weights1989.pdf}%
+}
+\end{figure}
+
+The {\tt sdid} command returns multiple matrices containing treatment and control outcome trends, weights, and other elements.  These elements can be accessed simply for use in post-estimation procedures or graphing.  As a simple example, the following code excerpt accesses treatment and synthetic control outcome trends (stored in {\tt e(series)}, and time weights (stored in {\tt e(lambda)}) and uses these elements to replicate the plot presented in Figure \ref{fig:sdidplot}b.  The resulting graphical output is presented  as Figure \ref{fig:sdidplotmanual}.  Figure \ref{fig:sdidplotmanual} is virtually identical to Figure \ref{fig:sdidplot}b however omits the second y-axis, in line with the plots originally presented in \citet{Arkhangelskyetal2021}.  In this way, if one wishes to have further control over the precise nature of plotting, beyond that provided in the graphing options available in {\tt sdid}'s command syntax, one can simply work with elements returned in the ereturn list.  In Appendix A2, we show that with slightly more effort, returned elements can be used to construct the unit-specific weight plot from Figure \ref{fig:sdidplot}a.
+
+%On the other hand, if you want to create your own plot, we store the plot weights and series in Figure \ref{fig:sdidplot}. For example, to replicate panel (b) you can access the array {\tt e(series)} after running the above code. By running the following, you can replicate control and treatment trends.
+
+
+%Shall we make sdid return the difference estimates for each state so we can make the weighting graph more easily?
+\begin{stlog}
+    \input{examples/ex2_1.log}
+\end{stlog}
+
+\begin{figure}[htpb!]
+\caption{Outcome Trends and Time-Specific Weights}
+\label{fig:sdidplotmanual}
+\includegraphics[width=0.9\textwidth]{./graphs/sdid_replicate.pdf}
+\end{figure}
+
+
+\subsection{A Staggered Adoption Design}
+\label{sscn:SADexample}
+We present an example of a staggered adoption design, based on data and the context studied in \citet{Bhalotraetal2022}.  In this case, the impact of parliamentary gender quotas which reserve seats for women in parliament are estimated, first on rates of women in parliament, and secondly on rates of maternal mortality.  This is conducted on a country by year panel, where for each of 1990-2015, 115 countries are observed, 9 of which implement a parliamentary gender quota.\footnote{This is a subset of the full sample studied in \citet{Bhalotraetal2022}.  Here we only work with countries for which observations of women in parliament and maternal mortality exist for the full time period, without missing observations.}  For each of these countries, data on the rates of women in parliament and the maternal mortality ratio are collected, as well as a number of covariates.  %In this illustrative example, we work with the sample of 119 countries for which all data is observed for all years (9 of which adopt gender quotas), hence providing a balanced panel as required for synthetic difference-in-differences.
+
+This example presents a staggered adoption configuration, given that in the period under study, quota adoption occurred in seven different yearly periods between 2000 and 2013. {\tt sdid} handles a staggered adoption configuration seamlessly without any particular changes to the syntax.  In the code below, we implement the synthetic difference-in-differences estimator using the bootstrap procedure to calculate standard errors.  The output by default reports the weighted ATT which is defined in (\ref{eqn:ATT}) above.  However, as laid out in (\ref{eqn:ATT}), this is based on each adoption-period specific synthetic difference-in-differences estimate.  These adoption-period specific estimates are returned in the matrix {\tt e(tau)}, which is tabulated below the standard command output.
+
+%DC: Shall we make output say variable name, and not "treatment"?
+\begin{stlog}
+    \input{examples/ex3_1.log}
+\end{stlog}
+
+All other elements are identical to those documented in the case of a single adoption period, however generalised to multiple adoptions.  For example, if requesting graphical output, a single treatment versus synthetic control trend graph and corresponding unit-level weight graph is provided for each adoption date.  Similarly, {\tt ereturn}ed matrices such as {\tt e(lambda)}, {\tt e(omega)} and {\tt e(series)} provide columns for each particular adoption period.
+
+\paragraph{Adding Covariates}
+As laid out in Section \ref{sscn:controls}, covariates can be handled in synthetic difference-in-differences in a number of ways.  Below we document the inclusion of a single covariate (the natural logarithm of GDP per capita).  As {\tt sdid} is based on a balanced panel of observations, we must first ensure that there are no missing observations for all covariates, in this case dropping a small number of (control) countries for which this measure is not available. We then include covariates via the {\tt covariates()} option.  In the first case, this is conducted exactly following the procedure discussed by \citet{Arkhangelskyetal2021}, in which parameters on covariates are estimated within the optimization routines in Mata.  This is analogous to indicating {\tt covariates(, optimized)}.  Estimates in this particular case suggest that the inclusion of this control does little to dampen effects.  After estimation, the coefficients on the covariates can be inspected as part of {\tt e(beta)}, where an adoption-specific value for each covariate is provided, given that the underlying SDID estimate is calculated for each adoption period.
+
+%DC: Check about e(series) levels for treated...
+\begin{stlog}
+    \input{examples/ex4_1.log}
+\end{stlog}
+
+The inclusion of covariates in the previous implementation adds considerably to the computational time as it increases the complexity of the underlying optimization routine, and this is conducted in each adoption period and each bootstrap replicate.  An alternative manner to capture covariates described in section \ref{sscn:controls} above is that of \citet{Kranz2022}, where the impact of covariates are projected out using a baseline regression of the outcome on covariates and fixed effects only in units where the treatment status is equal to zero.  This is implemented as below, with {\tt covariates(, projected)}.
+
+\begin{stlog}
+    \input{examples/ex5_1.log}
+\end{stlog}
+
+Here, results are slightly different, though quantitatively comparable to those when using alternative procedures for conditioning out covariates.  In this case, if examining the {\tt e(beta)} matrix, only a single coefficient will be provided, as the regression used to estimate the coefficient vector is always based on the same sample.  This additionally offers a non-trivial speed up in the execution of the code.  For example, on a particular personal computer with Stata SE 15.1 and relatively standard specifications, using the {\tt optimized} method above requires 324 seconds of computational time while using {\tt projected} requires 61 seconds (compared with 58 seconds where covariates are not included in {\tt sdid}).
+
+\paragraph{Post-Estimation Commands}
+While {\tt sdid} provides a standard tabular and graphical output as displayed previously, the command can used to provide output in alternative formats.  For example, the {\tt sdid} command interacts seamlessly with routines such as {\tt estout} \citep{Jann2004} for the exportation of results tables.  To see this, the below block of code estimates three specific versions of the model discussed above, storing each model using an {\tt eststo:} prefix, before finally exporting estimated ATTs and standard errors to a LaTeX file, which can be included in tabular form as displayed in Table \ref{tab:regtab}.  Similar such procedures could be conducted with routines such as {\tt outreg} or {\tt outreg2}, and tabular output could be further enriched using additional options within {\tt esttab} if desired. 
+
+% Podemos cambiar la nota de la tabla?
+% Podemos usar "Observations" en vez de "N"?
+% 
+\begin{stlog}
+. webuse set www.damianclarke.net/stata/
+. webuse quota_example.dta, clear
+. lab var quota "Parliamentary Gender Quota"
+
+. eststo sdid_1: sdid womparl country year quota, vce(bootstrap) seed(2022)
+
+. drop if lngdp==.
+. eststo sdid_2: sdid womparl country year quota, vce(bootstrap) seed(2022) 
+>     covariates(lngdp, optimized)
+
+. eststo sdid_3: sdid womparl country year quota, vce(bootstrap) seed(2022)
+>     covariates(lngdp, projected)
+\end{stlog}
+
+\begin{stlog}
+. esttab sdid_1 sdid_2 sdid_3 using "example1.tex", 
+>     nonotes nomtitles stats(N, labels("Observations") fmt(\%9.0fc))
+>     addnotes("* p$<$0.10, ** p$<$0.05, *** p$<$0.01")
+>     starlevel ("*" 0.10 "**" 0.05 "***" 0.01) lab
+>     b(\%-9.3f) se(\%-9.3f) style(tex) replace
+\end{stlog}
+
+\begin{table}[htpb!]
+    \centering
+    \caption{Tabular Output Following {\tt sdid}}
+    \label{tab:regtab}
+\input{examples/example1}
+\end{table}
+
+
+
+\subsection{Inference Options}
+\label{sscn:inferenceEmp}
+In this section we provide examples of the implementation of alternative inference options, as laid out in algorithms \ref{alg:BoostrapStaggered}-\ref{alg:placeboStaggered}.  For this illustration we will keep only treated units which adopt gender quotas in 2002 and 2003, as otherwise adoption periods will exist in which only a single unit is treated, and jackknife procedures will not be feasible.
+
+\begin{stlog}
+    \input{examples/ex6_1.log}
+\end{stlog}
+
+In the following three code blocks we document bootstrap, placebo and jackknife inference procedures.  The difference in implementation in each case is very minor, simply indicating either {\tt bootstrap}, {\tt placebo} or {\tt jaccknife} in the {\tt vce()} option.  For example, in the case of bootstrap inference, where block bootstraps over the variable {\tt country} are performed, the syntax is as follows:
+
+\medskip
+\begin{stlog}
+    \input{examples/ex7_1.log}
+\end{stlog}
+
+By default, only 50 bootstrap replicates are performed, though in practice, a substantially higher number should be used, and this can be indicated in the {\tt reps(\#)} option.  In the case of placebo, the syntax and output are virtually identical.  The suitability of each method depends on the underlying structure of the panel, and in this particular case, given the relatively small number of treated units, it may be the case that placebo procedures are preferred. 
+
+\begin{stlog}
+    \input{examples/ex8_1.log}
+\end{stlog}
+
+Finally, in the interests of completeness, the jackknife procedure, which is by far the fastest of the three to execute\footnote{As an example, with 50 replicates for bootstrap and placebo, and on a standard personal computer running Stata SE, 15.1, the execution time for bootstrap was 18.2 seconds, for placebo permutations was 10.09 seconds, and for jackknife was 0.7 seconds.  This time scales approximately linearly with the number of replicates in the case of bootstrap and placebo.  With 500 replicates the time was 178.1 and 101.6 for bootstrap and placebo procedures respectively.}, is provided below.  Note that unlike the case with placebo or bootstrap inference, it is not necessary (or relevant) to set a seed, nor indicate the number of replications, as the jackknife procedure implies conducting a leave-one-out procedure over each unit.  In this particular case, jackknife inference appears to be more conservative than bootstrap procedures, in line with what may be expected based on \citet{Arkhangelskyetal2021}'s demonstration that jackknife inference is in general conservative. 
+
+\begin{stlog}
+    \input{examples/ex9_1.log}
+\end{stlog}
+
+ %\vspace{-1.5cm}
+ %\vspace{-1.5cm}
+
+%\subsection{Altering Appearance}\label{sec:App}
+%\texttt{sdid}, allows for a number of ways to visualize XXXX.
+
+
+\subsection{Event Study Style Output}
+While {\tt sdid} offers a simple implementation to conduct standard synthetic difference-in-difference procedures and provide output, with some work results can also be visualized in alternative ways.  
+For example, consider the standard `panel event-study' style setting (see \emph{e.g.} \citet{Freyaldenhovenetal2019,SchmidheinySiegloch2019,ClarkeTapia2021}), where one wishes to visualize how the dynamics of some treatment effect evolve over time, as well as how differences between treated and control units evolve prior to the adoption of treatment.  Such graphs are frequently used to efficiently provide information on both the credibility of parallel pre-trends in an observational setting, as well as the emergence of any impact owing to treatment once treatment is switched on.  
+
+\begin{figure}[htpb!]
+\caption{Outcome trends and event study style estimate of the impact of quotas on \% women in parliament}
+\label{fig:eventstudymanual}
+\subfloat[Outcome Trends]{%
+ \includegraphics[width=0.5\textwidth]{./graphs/groupstrends2002.pdf}%
+}
+\subfloat[Event Study]{%
+ \includegraphics[width=0.5\textwidth]{./graphs/event_sdid_u.pdf}%
+}
+\end{figure}
+
+
+What such an analysis seeks to document is the differential evolution of treated and (synthetic) control units, abstracting away from any baseline difference between the groups.  As an example, refer to Figure \ref{fig:eventstudymanual}(a), which is based on the adoption of gender quotas laid out in section \ref{sscn:SADexample}, and in particular quota adoption year 2002.  This is standard output from {\tt sdid}, presenting trends in rates of women in parliament in countries which adopted quotas in 2002 (solid line), and synthetic control countries which did not adopt quotas (dashed line).  We will refer to the values plotted in these trend lines as $\bar{Y}^{Tr}_t$ for treated units in year $t$, and $\bar{Y}^{Co}_t$ for synthetic control units in year $t$.   While this standard output allows us to visualize trends in the two groups in a simple way, it is not immediately clear how the \emph{differences} in these outcomes evolve over time compared to baseline differences, %between treated and control units, 
+nor the confidence intervals on any such changes over time.  
+
+For this to resemble the logic of an event study analysis, we wish to consider, for each period $t$, whether differences between treated units and synthetic controls have changed when compared to baseline differences.  Namely, for each period $t$, we wish to calculate:
+\begin{equation}
+\label{eqn:eventT}
+ \left(\bar{Y}^{Tr}_t-\bar{Y}^{Co}_t\right)-\left(\bar{Y}^{Tr}_{baseline}-\bar{Y}^{Co}_{baseline}\right),
+\end{equation}
+along with the confidence interval for this quantity. Here $\bar{Y}^{Tr}_{baseline}$ and $\bar{Y}^{Co}_{baseline}$ refer to baseline (pre-treatment) means for treated and synthetic control units respectively.  In standard panel event studies, some arbitrary baseline period is chosen off of which to estimate pre-treatment differences.  This is often one year prior to treatment.  In the case of SDID where pre-treatment weights are optimally chosen as $\widehat\lambda^{sdid}_t$ (refer to section \ref{scn:methods}), this suggests an alternative quantity for $\bar{Y}^{Tr}_{baseline}$ and $\bar{Y}^{Co}_{baseline}$, namely: 
+\begin{equation}
+\label{eqn:baseline}
+\bar{Y}^{Tr}_{baseline} = \sum_{t=1}^{T_{pre}}\widehat\lambda^{sdid}_t\bar{Y}^{Tr}_t \qquad \bar{Y}^{Co}_{baseline} = \sum_{t=1}^{T_{pre}}\widehat\lambda^{sdid}_t\bar{Y}^{Co}_t.
+\end{equation}
+In words these baseline outcomes are simply pre-treatment aggregates, where weights are determined by optimal pre-treatment weights (indicated by the shaded gray area in Figure \ref{fig:eventstudymanual}(a)).  The event study then plots the quantities defined in (\ref{eqn:eventT}), for each time $t$.
+
+%While such patterns can be inferred visually from treatment and synthetic control trends plotted by default (for example in Figure \ref{fig:sdidplot}b), it may nevertheless be useful to formally consider the evolution of baseline trends and the dynamics of treatment effects along with their confidence intervals.
+
+
+An example of such an event study style plot is presented in Figure \ref{fig:eventstudymanual}(b).  Here, blue points present the quantity indicated in (\ref{eqn:eventT}) for each year.  In this case, $t$ ranges from 1990 to 2015.  %Points in the pre-treatment period of 1990-2001 suggest quite a flat evolution of outcomes between treatment and synthetic control units prior to quota adoption, with sharp relative increases occurring in treated units following treatment in 2002. 
+While all these points are based off a simple implementation of {\tt sdid} comparing outcomes between treated and control units following (\ref{eqn:eventT}), confidence intervals documented in gray shaded areas of Figure \ref{fig:eventstudymanual}(b) can be generated following the resampling or permutation procedures discussed earlier in this paper.   Specifically, in the case of re-sampling, a block bootstrap can be conducted, and in each iteration the quantity in (\ref{eqn:eventT}) can be re-calculated for each $t$.  The confidence interval associated with each of these quantities can then be calculated based on its variance across many (block)-bootstrap resamples.
+%variance for each $t$, and correspondingly confidence intervals, can be calculated as the variance of these quantities across many bootstraps.
+
+%This plot follows the standard event study setting in which both pre- and post-treatment differences between treatment and control units
+
+
+%, which is based on the same data and setting (quota adoption) examined above.  This plot follows the standard event study style of documenting both pre- and post-treatment differences between treatment and control units, re-centered around 0 in the pre-event period. The vertical black line indicates the year of the event (in this case quota adoption), with a sharp increase in the outcome (women in parliament) observed among treated units compared to control units precisely at the moment of the event.  However, unlike standard event studies, this plot is based off comparisons between treated and \emph{synthetic} control units, rather than comparisons between the treated and \emph{all} control units. Also note that unlike a standard event study where a single baseline period is omitted to estimate the baseline mean, and as such is anchored at zero, in this case the baseline mean is estimated off potentially multiple baseline periods (as determined optimally by $\lambda_t$), and so no point is necessarily fixed precisely at zero.
+
+Figure \ref{fig:eventstudymanual}(b), and graphs following this principle more generally, can be generated following the use of {\tt sdid}.  However, by default {\tt sdid} simply provides output on trends among the treated and synthetic control units (as displayed in Figure  \ref{fig:eventstudymanual}(a)). In the code below, we lay out how one can move from these trends to the event study in panel (b).  As this procedure requires conducting the inference portion of the plot manually (unlike most other procedures involving {\tt sdid} where inference is conducted automatically as part of the command) the code is somewhat more involved.  For this reason, we discuss the code below in a number of blocks, terminating with the generation of the plot displayed in Figure \ref{fig:eventstudymanual}(b).
+
+In a first code block, we will open the parliamentary gender quota data which we used in section \ref{sscn:SADexample}, and keep the particular adoption period considered here (countries which adopt quotas in 2002), as well as un-treated units:
+
+\begin{stlog}
+. webuse set www.damianclarke.net/stata/
+. webuse quota_example.dta, clear
+
+. egen m=min(year) if quota==1, by(country)  //indicator for the year of adoption
+. egen mm=mean(m), by(country)
+. keep if mm==2002 | mm==.                   //keep only one time of adoption
+. drop if lngdp==.                           //keep if covariates observed
+\end{stlog}
+
+We can then implement the standard SDID procedure, additionally exporting the trend graphs which is displayed in Figure \ref{fig:eventstudymanual}(a).  This is done in the first line below, after which a number of vectors are stored.  These vectors allow us to calculate the quantity $(\bar{Y}^{Tr}_{baseline}-\bar{Y}^{Co}_{baseline})$ indicated in (\ref{eqn:eventT}), which is generated from $\widehat\lambda^{sdid}$, from the returned matrix {\tt e(lambda)}, and pre-treatment values for $\bar{Y}^{Tr}_t$ and $\bar{Y}^{Co}_t$, from the returned matrix {\tt e(series)}.  This baseline quantity is referred to as {\tt meanpre\_o} below.  Finally, the quantity of interest in (\ref{eqn:eventT}) for each time period $t$ is generated as the variable {\tt d}, which is plotted below as the blue points on the event study in Figure \ref{fig:eventstudymanual}(b).
+
+%Once these bootstrap replicates have been generated and stored, we can estimate the true SDID estimate of the impact of quota adoption in 2002 on the proportion of women in parliament, and save a number of elements returned from the command for processing below.  This is based on the true data, and is used to calculate the trend graphs in Figure \ref{fig:eventstudymanual}(a), and the blue points in Figure \ref{fig:eventstudymanual}(b). Specifically, from {\tt sdid} we require the $\widehat\lambda^{sdid}_t$ weight vector, as we wish to calculate baseline values in (\ref{eqn:baseline}), as well as trends in outcomes for treated and synthetic control units.  The weight vector is returned by {\tt sdid} as {\tt e(difference)}, and the trends are returned as {\tt e(series)}.  The baseline difference $(\bar{Y}^{Tr}_{baseline}-\bar{Y}^{Co}_{baseline})$ from (\ref{eqn:eventT}) is generated as {\tt meanpre} below.
+
+
+\begin{stlog}
+. qui sdid womparl country year quota, vce(noinference) graph g2_opt(ylab(-5(5)20) 
+>     ytitle("Women in Parliament") scheme(sj)) graph_export(groups, .pdf) 
+>     covariates(lngdp, projected)
+
+. matrix lambda = e(lambda)[1..12,1]    //save lambda weight
+. matrix yco = e(series)[1..12,2]       //control baseline
+. matrix ytr = e(series)[1..12,3]       //treated baseline
+. matrix aux = lambda'*(ytr - yco)      //calculate the pre-treatment mean
+. scalar meanpre_o = aux[1,1]    
+
+. matrix difference = e(difference)[1..26,1..2]  // Store Ytr-Yco
+. svmat difference
+. ren (difference1 difference2) (time d)
+. replace d = d - meanpre_o                      // Calculate vector in (8)
+\end{stlog}
+
+Perhaps the most complicated portion of code is that which implements the bootstrap procedure.  This is provided below, where for ease of replication we consider a relatively small number of bootstrap resamples, which are set as the local {\tt B = 100}.  In each bootstrap resample, we first ensure that both treatment and control units are present (using the locals {\tt r1} and {\tt r2}), and then re-estimate the {\tt sdid} procedure with the new bootstrap sample generated using Stata's {\tt bsample} command.  This is precisely the same block bootstrap procedure laid out by \citet{Arkhangelskyetal2021}, and which {\tt sdid} conducts internally, however here we are interested in collecting, for each bootstrap resample, the same quantity estimated above with the main sample as {\tt d}, which captures the estimate defined in (\ref{eqn:eventT}) for each $t$.  To do so, we simply follow an identical procedure as that conducted above, however now save the resulting resampled values of the quantities from (\ref{eqn:eventT}) as a series of matrices \verb|d`b'| for later processing to generate confidence intervals in the event study.
+
+%This is provided automatically by {\tt sdid} as the matrix {\tt e(difference)}, and we save this as a matrix for later processing to generate confidence intervals in the event study.
+
+%and conducting the {\tt sdid} process in each.
+
+%In order to generate the event study for this particular adoption period (2002), we wish to have an estimate of both the difference between treated and control units (blue points in Figure \ref{fig:eventstudymanual}), as well as confidence intervals on this estimate (shaded grey areas in Figure \ref{fig:eventstudymanual}).  To generate an estimation of the confidence intervals, we can follow precisely the same block bootstrap procedure laid out by \citet{Arkhangelskyetal2021}, and which {\tt sdid} conducts internally, but now collecting resampled estimates of the difference between these two outcomes.  Later in this example, we will use the standard deviation of these resamples to estimate the standard error, as typical in bootstrap variance estimates, which can be used to generate confidence intervals.  Thus, below we conduct $B=100$ bootstrap replicates of the difference between treated and synthetic control units, where the locals {\tt r1} and {\tt r2} are used to ensure that each bootstrap replicate contains both treated and control units.  Following each bootstrap replicate, a matrix is stored containing the difference between treated and synthetic control units in each of the 26 years under study.
+
+\begin{stlog}
+. local b = 1
+. local B = 100   
+. while `b'<=`B' \{
+.     preserve
+.     bsample, cluster(country) idcluster(c2)
+.     qui count if quota == 0
+.     local r1 = r(N)
+.     qui count if quota != 0
+.     local r2 = r(N)    
+.     if (`r1'!=0 & `r2'!=0) \{
+.         qui sdid womparl c2 year quota, vce(noinference) graph covariates(lngdp, projected)
+		
+.         matrix lambda_b = e(lambda)[1..12,1]     //save lambda weight
+.         matrix yco_b = e(series)[1..12,2]        //control baseline
+.         matrix ytr_b = e(series)[1..12,3]        //treated baseline
+.         matrix aux_b = lambda_b'*(ytr_b - yco_b) //calculate the pre-treatment mean
+.         matrix meanpre_b = J(26,1,aux_b[1,1])
+		
+.         matrix d`b' = e(difference)[1..26,2] - meanpre_b
+		
+.         local ++b
+.     \}
+.     restore
+. \}
+\end{stlog}
+
+%\begin{stlog}
+%. sdid womparl country year quota, vce(noinference) graph
+%. matrix difference=e(difference)[1..26,1..2]
+%
+%. matrix lambda1=e(lambda)[1..12,1]     //save lambda weight
+%. matrix yco1=e(series)[1..12,2]
+%. matrix ytr1=e(series)[1..12,3]
+%. matrix meanpre=-lambda1'*(ytr1-yco1) //calculate the pre-treatment mean
+%. local meanpre=meanpre[1,1]
+%\end{stlog}
+
+The final step is to calculate the standard deviation of each estimate from (\ref{eqn:eventT}) based on the bootstrap resamples, and then to generate confidence intervals for each parameter based on the estimates generated above ({\tt d}), as well as their standard errors.  This is conducted in the first lines of the code below.  For each of the $B=100$ resamples conducted above, we import the vector of resampled estimates from (\ref{eqn:eventT}), and then using {\tt rowsd()} calculate the standard deviation of the estimates across each time period $t$.  This is the bootstrap standard error, which is used below to calculate the upper and lower bounds of 95\% confidence intervals as [{\tt LCI};{\tt UCI}].  Finally, based on these generated elements ({\tt d}, as blue points on the event study, and {\tt LCI, UCI} as the end points of confidence intervals) we generate the output for Figure \ref{fig:eventstudymanual}(b) in the final lines of code.
+
+\begin{stlog}
+. preserve
+. keep time d
+. keep if time!=.
+
+. forval b=1/`B' \{
+.     svmat d`b'   // import each bootstrap replicate of difference between trends
+. \}
+
+. egen rsd = rowsd(d11 - d`B'1)      //calculate standard deviation of this difference
+. gen LCI = d + invnormal(0.025)*rsd //lower bounds on bootstrap CIs
+. gen UCI = d + invnormal(0.975)*rsd //upper bounds on bootstrap CIs
+
+. *generate plot
+. tw rarea UCI LCI time, color(gray%40) || scatter d time, color(blue) m(d) 
+>     xtitle("") ytitle("Women in Parliament") xlab(1990(1)2015, angle(45))
+>     legend(order(2 "Point Estimate" 1 "95% CI") pos(12) col(2)) 
+>     xline(2002, lc(black) lp(solid)) yline(0, lc(red) lp(shortdash)) 
+>     scheme(sj)
+. graph export "event_sdid.pdf", replace
+. restore
+\end{stlog}
+As noted above, the outcome of this graph is provided in Figure \ref{fig:eventstudymanual}(b), where we observe that, as expected, the synthetic difference-in-difference algorithm has resulted in quite closely matched trends between the synthetic control and treatment group in the pre-treatment period, given that all pre-treatment estimates lie close to zero.  The observed impact of quotas on women in parliament occurs from the treatment year onward, where these differences are observed to be large and statistically significant.
+
+This process of estimating an event study style plot is conducted here for a specific adoption year.  In the case of a block adoption design where there is only one adoption period, this will be the only resulting event study to consider.  However in a staggered adoption design, a single event study could be generated for each adoption period.  Potentially, such event studies could be combined, but some way would be required to deal with unbalanced lags and leads, and additionally some weighting function would be required to group treatment lags and leads where multiple such lags and leads are available.  One such procedure has been proposed in \citet{AbrahamSun2018}, and could be a way forward here.
+
+\subsection{Other Parameters}
+\label{sscn:otherparameters}
+In general, estimation and inference for synthetic difference-in-differences is concerned with the ATT, or adoption-specific treatment effects $\widehat\tau_a^{sdid}$ from \eqref{eqn:ATT} in the case of staggered adoption designs.  Nevertheless, in considering the weighted regression model laid out in \eqref{eqn:sdid}, it is clear that there are a range of other parameters involved in the estimation of the ATT including a constant term $\mu$, unit fixed effects $\alpha_i$, and time fixed effects $\beta_t$.
+
+In practice, once unit and time-specific weights are calculated there are a number of ways which one can proceed to estimate the ATT.  In the implementation of {\tt sdid}, given that the main estimand of interest is the ATT, a direct approach is taken where $\widehat\tau^{sdid}$ (or $\widehat\tau_a^{sdid}$ in the case of staggered adoption designs) can be estimated directly in a single weighted difference-in-differences step.  This procedure is laid out fully in Appendix A3, and the {\tt sdid} code works in this way given that it is substantially faster in terms of total computation time than implementing the weighted regression described in \eqref{eqn:sdid}.  Nevertheless, if one wishes to estimate the \emph{other} parameters associated with the objective function \eqref{eqn:sdid}, this parameter estimation can be conducted as a post-estimation step in a relatively straightforward way.
+
+To see this, note that \eqref{eqn:sdid} is simply a weighted regression where weights for each unit are defined as $w=\widehat\omega_i^{sdid}\cdot\widehat\lambda_t^{sdid}$.  Given that {\tt sdid} returns $\widehat\omega_i^{sdid}$ and $\widehat\lambda_t^{sdid}$ as {\tt e(omega)} and {\tt e(lambda)}, and these can additionally be requested to be stored directly in a data via the {\tt returnweights} option, it is illustrative to see that the weighted regression returns the parameters described in \eqref{eqn:sdid}.  We illustrate this below, taking advantage of the {\tt returnweights} option in {\tt sdid}.
+
+To see how this works, we return to the case of proposition 99, first estimating synthetic difference-in-differences.  By default when {\tt returnweights} is indicated, $\lambda$ weights are returned as {\tt lambda----} (where \texttt{----} refers to the treatment period; 1989 below), and $\omega$ weights are returned as {\tt omega----}.  If multiple treatment periods exist, a set of weights are returned for each period.  In the code block below, we generate unit-specific weights implicit in {\tt sdid} as {\tt weight}, before finally estimating the weighted regression.  Output from this regression is presented below, where we observe the equivalence with the treatment effect estimated by {\tt sdid}.  \emph{However} we additionally observe estimated state-specific fixed effects and year-specific fixed effects, as well as the constant indicated in \eqref{eqn:sdid}.  It is additionally of note that fixed effects \emph{only} exist for those units which receive non-zero weights in the {\tt sdid} algorithm.  When considering state-specific fixed effects, a single fixed effect is omitted by default (in this case, Arkansas), while all other fixed effects apart from those receiving zero weights (indicated by an ``x" symbol in Figure \ref{fig:californiaplot}d) are presented in regression output.  Similarly in the case of year fixed-effects, estimates exist for pre-treatment years 1987 and 1988, while 1986 is omitted as the baseline reference category, in line with non-zero $\omega$ weights for these periods only.
+
+
+\begin{stlog}
+    \input{examples/reg1}
+\end{stlog}
+
+%webuse set www.damianclarke.net/stata/
+%webuse prop99_example.dta, clear
+%sdid packspercapita state year treated, vce(noinference) returnweights
+
+%replace lambda = 1/12 if lambda==.
+%replace omega = 1/1 if omega==.
+%gen weight = lambda*omega
+
+%reghdfe packspercapita treated [pw=weight], abs(state year)  
+
+It is important to note that this regression \emph{does not} give valid inference for the estimated ATT, nor for any fixed effects or constants as it treats weights as known, rather than estimated. More generally, the variance derivations in \citet{Arkhangelskyetal2021} are only valid for the ATT, so any inference considerations on fixed effects are not theoretically founded at present.  Nevertheless, if we do wish to consider valid inference in a regression-based framework following {\tt sdid}, we can follow similar procedures to those laid out in bootstrap, jackknife or placebo procedures described previously.  To consider a simple illustration, below we implement a permutation-based procedure which is virtually identical to {\tt sdid}'s internal permutation routine, where in each iteration an ATT estimate is produced for a randomly permuted (untreated) state assuming treatment occurs in 1989.  We once again estimate weighted regression using the weights returned from {\tt sdid}, in each iteration storing the estimated ATT in the variable {\tt Taus}.  Finally, at the end of this code block we inspect estimated {\tt Taus}, which provides an estimate of the standard error (the standard deviation of permutations), and similarly would allow for the calculation of confidence intervals based on empirical quantiles of this variable. We observe that the standard error is in line with that reported previously when estimating {\tt sdid} directly.
+
+\begin{stlog}
+    \input{examples/reg2}
+\end{stlog}
+
+This procedure is documented as it is illustrative to note that other parameters from \eqref{eqn:sdid} can be simply estimated by weighted regression.  Given the lack of valid standard errors directly from regression, this procedure should be implemented with care, though as we document in the permutation procedure above, one \emph{can} implement valid inference directly via regression if desired, though this is less direct than implementing procedures directly in {\tt sdid}.  What's more, one could follow similar such procedures to examine the variability of \emph{other} parameters such as returned weights, fixed effects, or the model constant, though at present, theoretical results are not available to validate the use of such procedures for valid inference on parameters apart from $\widehat\tau^{sdid}$ or $\widehat\tau_a^{sdid}$.
+
+%\vspace{-1.2cm}
+\section{Conclusions}
+\label{scn:discussion}
+Recent advances in panel data methods have resulted in a rich set of tools which can be used to conduct policy and other analyses.  Such methods, combined with a growing emphasis on formal identification and broadening availability of large datasets and computing power available to researchers \citep{Currieetal2020} suggests we will see an increasing adoption of these tools in applied research in the social sciences.  Two particularly common approaches to analysis in a panel data or repeated cross sectional settings are difference-in-differences, and synthetic control methods.  While both are sharply increasing in frequency in applied research \citep{Currieetal2020}, they are often used in different cases: DID is commonly employed with many treated units and potentially fewer time period, while SC is often implemented with fewer treatment units, many controls, and longer pre-treatment periods.  What's more, both settings have particular assumptions which may not be met in practice: DID requires parallel trends between treated and control units, while SC requires a convex hull assumption which is not met if treatment outcomes are more extreme than control outcomes.
+
+In this paper we have laid out the details behind \citet{Arkhangelskyetal2021}'s SDID method, which allows for the relaxation of assumptions required in both DID and SC settings, while also maintaining desirable properties if these assumptions are met. We have discussed its implementation in Stata using the {\tt sdid} command, which provides a computationally efficient way to conduct estimation, inference, and graphing.  We have discussed the theory behind this command, as well as laid out extensions into a staggered adoption setting.  We provide two empirical examples to demonstrate the usage of the command.  While the main novelty of the {\tt sdid} command introduced here is the implementation of SDID methods, it can similarly be used to implement DID and SC methods.  The efficiency of estimation routines implemented for SDID are leveraged when estimating SC and DID methods, which implies that {\tt sdid} may provide faster implementations than other SC libraries currently available in Stata in a range of contexts.
+
+Nevertheless, despite the ease of implementation of {\tt sdid}, there are a number of requirements which should be considered prior to usage.  From a \textbf{practical standpoint}, given the nature of the SDID algorithm, a number of conditions must be met for this to be applied to data. Firstly, and most importantly, a balanced panel of data is required which provides outcomes and treatment measures for each unit in all periods under study.  Should missing values in such outcomes be present in the panel, these either must be eliminated from the estimation sample, or data should be sought to fill in gaps (a similar requirement exists for control variables if controls are to be included in estimation).  Secondly, no units can be considered if they were exposed to treatment from the first period in which data is observed.  If this occurs, there is no pre-treatment period on which to generate synthetic control cohorts.  If always-treated units are present in the data, these either need to be eliminated, or earlier data sought. Third, pure control units are required.  At least some units must never be treated in order to act as donor units.  If all units are treated at some point in the panel, no donor units exist, and synthetic controls cannot be generated.  Finally, in the case of inference, a number of additional requirements must be met.  In the case of bootstrap or jackknife procedures, the number of treated units should be larger than 1 (and ideally considerably larger than this).  Should only 1 treated unit be present, placebo inference should be conducted.  Additionally, in the case of placebo inference, this can only be conducted if the number of control units exceeds the number of treated units.  If implementing DID or SC methods using {\tt sdid}, these procedures rely on similar computational routines, and so inherit the same requirements mentioned above (though also inherit the same computational efficiencies built into SDID implementations).
+
+From a \textbf{theoretical standpoint}, there are additional considerations which are important to keep in mind for the implementation of SDID procedures.  In particular, it is important to note that normality results underlying the generation of variance estimates and confidence intervals hold asymptotically.  Specifically, these results require that the entire panel size grows without limit, as does the number of control units, and the number pre-treatment periods.  However, these results do not require for the number of treatment units to grow without limit, in particular, requiring that \emph{either} the number of post-treatment periods \emph{or} the number of  treated units grows without limit (see \citet[p.\ 4016]{Arkhangelskyetal2021}.  Reassuringly,  simulation results from \citet{Arkhangelskyetal2021} suggest the the SDID estimator has good properties even with as few as 1 treatment unit, and with panels consisting of 50 states and 40 time periods.  This raises the general question of what types of data properties are required for SDID estimation.  A key element of estimation, as in the case of synthetic control estimation \citep{BenMichealetal2021,Abadieetal2010}, is the adequate modeling of pre-treatment trends.  This requires a sufficient number of periods off of which to model the generation of synthetic cohorts, but also the avoidance of periods in which structural breaks occur in treatment outcomes (see, for example, practical discussion related to synthetic controls in \citet{Abadie2021}).  While there is not yet a method to determine the precise number of required pre-treatment periods for SDID modelling, simulation results in \citet{Arkhangelskyetal2021} show good behaviour in settings with 30 pre-treatment periods.  In practice, considerably fewer pre-treatments are likely to be required, and indeed, the canonical example of synthetic control methods based on California's proposition 99 is based of 19 pre-treatment periods.  What's more, SDID in general requires fewer pre-treatment periods than SC implementations given that SDID's optimal weighting of years \emph{and} states in generating estimates has a double robustness property, while SC does not have this property \citep{Arkhangelskyetal2021}.  Future work could further clarify data requirements in terms of minimum required pre-periods in SDID modelling.
+
+In general, this is a fast-evolving field \citep{Rothetal2022,ArkhangelskyImbens2023} and there is substantial work of interest beyond the synthetic DID methods described in this paper.  Among other things, synthetic control has been shown to gain from regularization \citep[][among others]{BenMichealetal2021,Chernozhukovetal2021,AbadieLHour2021}, debiasing methods \citep{FermanPinto2021} and extend to distributional considerations \citep{Gunsilius2023}.  
+Overall though, should a balanced panel of data be available, the SDID method, and the {\tt sdid} command described here, offers a flexible, easy to implement and robust option for the analysis of impacts of policies or treatments in certain groups at certain times.  These methods provide clear graphical results to describe outcomes, and an explicit description of how counterfactual outcomes are inferred.  These methods are likely well suited to a large body of empirical work in social sciences, where treatment assignment is not random, and offer benefits over both difference-in-differences and synthetic control methods.
+
+\begin{Athanks}
+We are grateful to Asjad Naqvi for comments relating to this code, and many users of the {\tt sdid} ado for sending feedback and suggestions related to certain features implemented here.  We thank the editor Stephen P.\ Jenkins and an anonymous referee for many useful comments.
+\end{Athanks}
+
+\bibliography{sj}
+
+\begin{aboutauthors}
+Susan Athey is the Economics of Technology Professor at Stanford Graduate School of Business.
+
+Damian Clarke is an Associate Professor at The Department of Economics of The Universidad de Chile, a Research Fellow at IZA and an Associate at the Millennium Institute for Market Imperfections and Public Policy and CAGE, Warwick.  
+
+Guido Imbens is the Applied Econometrics Professor and Professor of Economics at Stanford Graduate School of Business.
+
+Daniel Pailañir is a Senior Analyst at Ministry of Economics, Development and Tourism of Chile.
+\end{aboutauthors}
+
+
+
+\end{document}
+
+
+
+%%%%%%%%%%%%%%%%%%%
+\newpage
+\appendix
+\section*{Appendices}
+\renewcommand{\thesection}{A\arabic{section}}
+\section{Estimation Algorithms for the Block Design}
+\label{app:algorithms}
+\setcounter{algocf}{0}
+\renewcommand{\thealgocf}{A\arabic{algocf}}
+In this Appendix, we replicate the estimation algorithm and inference algorithms defined in \citet{Arkhangelskyetal2021}.  These are referred to in the text, and follow the same notation as in section \ref{scn:methods} here.
+
+\begin{algorithm}
+\caption{Algorithm 1 from \citet{Arkhangelskyetal2021}}
+\label{alg:alg1}
+Data: \textbf{Y}, \textbf{W}. \\
+Result: Point estimate $\widehat{\tau}^{sdid}$.  \\ \ \\
+
+1. Compute regularization parameter $\zeta$\;
+2. Compute unit weights $\hat\omega^{sdid}$\;
+3. Compute time weights $\hat\lambda^{sdid}$\;
+4. Compute the SDID estimator via the weighted DID regression\;
+\[\left(\hat\tau^{sdid},\hat\mu,\hat\alpha,\hat\beta\right)=\argmin_{\tau,\mu,\alpha,\beta}\left\{\sum_{i=1}^N\sum_{t=1}^T(Y_{it}-\mu-\alpha_i-\beta_t-W_{it}\tau)^2\widehat\omega^{sdid}_i\hat\lambda^{sdid}_t \right\}\]
+\end{algorithm}
+
+\begin{algorithm}
+\caption{Algorithm 2 from \citet{Arkhangelskyetal2021}}
+Data: \textbf{Y}, \textbf{W}, $B$. \\
+Result: Variance estimator $\widehat{V}_{\tau}^{cb}$ \\ \ \\
+\For{b $\leftarrow$ 1 to B}
+{
+1. Construct a bootstrap dataset $(\mathbf{Y}^{(b)},\mathbf{W}^{(b)})$ by sampling $N$ rows of $(\mathbf{Y},\mathbf{W})$ with replacement\;
+2. \If{the bootstrap sample has no treated units or no control units}
+{
+\hspace{0.2cm}Discard resample and go to 1\;
+}\hspace{0.4cm}\textbf{end}\\ 
+3. Compute SDID estimate $\tau^{(b)}$ following algorithm \ref{alg:alg1} based on $(\mathbf{Y}^{(b)},\mathbf{W}^{(b)})$\;
+}\textbf{end}\\ \ \\
+4. Define $\widehat{V}_{\tau}^{cb}=\frac{1}{B}\sum_{b=1}^B\left(\widehat{\tau^{(b)}}-\frac{1}{B}\sum_{b=1}^B\widehat{\tau^{(b)}}\right)^2$;
+\end{algorithm}
+
+\begin{algorithm}
+\caption{Algorithm 3 from \citet{Arkhangelskyetal2021}}
+Data: $\widehat\omega$, $\widehat\lambda$ \textbf{Y}, \textbf{W}, $\widehat{\tau}$. \\
+Result: Variance estimator $\widehat{V}_{\tau}$ \\ \ \\
+\For{i $\leftarrow$ 1 to N}
+{
+1. Compute $\widehat{\tau}^{(-i)}: \argmin_{\tau,\{\alpha_j,\beta_t\}_{j\neq i,t}}\sum_{j\neq i,t}(Y_{it}-\alpha_j-\beta_t-W_{it}\tau)^2\widehat\omega_j\hat\lambda_t$\;
+}\textbf{end}\\ \ \\
+2. Compute $\widehat{V}_\tau^{jack}=(N-1)N^{-1}\sum_{i=1}^N\left(\widehat{\tau}^{(-i)}-\widehat{\tau}\right)^2$;
+\end{algorithm}
+
+\begin{algorithm}
+\caption{Algorithm 4 from \citet{Arkhangelskyetal2021}}
+Data: $\mathbf{Y}_{co}$, $N_{tr}$, $B$. \\
+Result: Variance estimator $\widehat{V}_{\tau}^{placebo}$ \\ \ \\
+\For{b $\leftarrow$ 1 to B}
+{
+1. Sample $N_{tr}$ out of the $N_{co}$ control units without replacement to `receive the placebo'\;
+2. Construct a placebo treatment matrix $\mathbf{W}^{(b)}_{co}$, for the controls\; 
+3. Compute SDID estimate $\tau^{(b)}$ based on $(\mathbf{Y}_{co},\mathbf{W}^{(b)}_{co})$\;
+}\textbf{end}\\ \ \\
+4. Define $\widehat{V}_{\tau}^{placebo}=\frac{1}{B}\sum_{b=1}^B\left(\widehat{\tau^{(b)}}-\frac{1}{B}\sum_{b=1}^B\widehat{\tau^{(b)}}\right)^2$;
+\end{algorithm}
+\clearpage
+
+\section{Replicating Weight Graphs}
+\label{app:additionalResults}
+After implementing the {\tt sdid} estimator, the unit specific weights can be used to re-create the weight graph provided as output automatically with the {\tt graph} option.  While this is somewhat involved, and likely would not be conducted by hand, it may be illustrative to see how this is generated, combining both unit-specific weights, and unit-specific difference-in-difference estimates. This code is displayed below, first saving time weights which are used to calculate DID estimates, secondly saving unit weights for graphing, thirdly combining all elements and calculating the DID estimates, and  finally, generating the graph, which is displayed after this code excerpt.
+
+\begin{stlog}
+\input{examples/ex2_2_1.log}
+\end{stlog}
+
+
+\setcounter{figure}{0}
+\renewcommand{\thefigure}{A\arabic{figure}}
+%DC: Podemos cambiar este gráfico para scheme(sj)?
+\begin{figure}[htpb!]
+\includegraphics[width=0.6\textwidth]{./graphs/sdid_panela.pdf}
+\caption{Unit-Specific Weight Graph}
+\label{fig:sdidplotmanual2}
+%\subfloat[Unit-Specific Weights]{%
+%\includegraphics[width=0.5\textwidth]{./graphs/sdid_panela.eps}%
+%}
+%\subfloat[Outcome Trends and Time-Specific Weights]{%
+% \includegraphics[width=0.5\textwidth]{./graphs/sdid_panelb.eps}%
+%}
+\end{figure}
+\clearpage
+\section{Computational Implementation of the SDID Estimator}
+\label{app:computation}
+While $\widehat\tau^{sdid}$ in \eqref{eqn:sdid} is presented as the solution to a two-way fixed effects regression, in practice this parameter can be estimated identically -- though in a considerably more computationally efficient manner -- directly as a weighted double-differencing estimator.  To see this, note: 
+\[
+\widehat\tau^{sdid} =\left(\bar{Y}^{sdid}_{tr,post}-\bar{Y}^{sdid}_{tr,pre}\right)-\left(\bar{Y}^{sdid}_{co,post}-\bar{Y}^{sdid}_{co,pre}\right)
+\]
+Here $\bar{Y}^{sdid}$ refers to weighted averages generated with SDID weights, $tr$ refers to treatment, $co$ to control, $pre$ to the pre-treatment period, and $post$ to the post-treatment period.  Note (as in \citet[eq.\ 16]{Arkhangelskyetal2021}), that this can be re-written as:
+\begin{equation}
+\label{eqn:doubledifferencing}
+\widehat\tau^{sdid}(\omega,\lambda)=\omega_{tr}'\mathbf{Y}_{tr,post}\lambda_{post}-\omega_{co}'\mathbf{Y}_{co,post}\lambda_{post}-\omega_{tr}'\mathbf{Y}_{tr,pre}\lambda_{pre}+\omega_{co}'\mathbf{Y}_{co,pre}\lambda_{pre}
+\end{equation}
+where $\mathbf{Y}_{tr,post}$ refers to an $N_{tr}\times N_{post}$ matrix, $\mathbf{Y}_{co,post}$ refers to an $N_{co}\times N_{post}$ matrix, and similarly for $pre$ periods.  Weights $\omega_{tr}$, $\omega_{co}$ and $\lambda_{post}$, $\lambda_{pre}$ are all column vectors of dimension $N_{tr}$, $N_{co}$, $N_{post}$ and $N_{pre}$ respectively.
+
+We denote as $\mathbf{Y}$ the full set of outcomes written in wide form with a single line for each unit and a single column for each time period, ordered such that:
+\[
+\mathbf{Y}=
+\begin{pmatrix}
+\mathbf{Y}_{co,pre} & \mathbf{Y}_{co,post} \\
+\mathbf{Y}_{tr,pre} & \mathbf{Y}_{tr,post} 
+\end{pmatrix}.
+\]
+By simple algebra, note that \eqref{eqn:doubledifferencing} can be written as:
+\begin{equation}
+\label{eqn:estimation}
+\widehat\tau^{sdid}(\omega,\lambda)=
+\begin{pmatrix}
+-\omega_{co}' & \omega_{tr} 
+\end{pmatrix}
+\mathbf{Y}
+\begin{pmatrix}
+-\lambda_{pre} \\
+\lambda_{post} 
+\end{pmatrix}
+\end{equation}
+Given the ease of computing \eqref{eqn:estimation}, and given that this requires a substantially lower computational burden to calculate than the weighted least squares regression, this is the formula which we use internally in {\tt sdid.ado} to calculate $\widehat\tau^{sdid}$, all implemented directly in Mata. Thus, in practice the computational implementation of {\tt sdid} consists of firstly estimating weights $\omega$ and $\lambda$, and secondly calculating \eqref{eqn:estimation}.  %following the optimal calculation of $\omega$ and $\lambda$, this formula is used internally in sdid.ado.
+
+%  The following is the calculation of $\widehat\tau$ for synthetic DID.  Note that $Ci$ refers to control (non-treated) units, while $Ti$ refers to treated units. Notation $Y_{i,t}$ refers to the outcome for unit $i$ at time period $t$.  Below $\omega_i$ refers to optimal synthetic DID weights for each control unit, and $\lambda_t$ refers to optimal synthetic DID weights for each pre-treatment time period.
+%\vspace{2mm}
+  
+%\hspace{10cm}$\qquad$$\qquad$$\qquad$$\qquad$$\qquad$ Pre $\qquad$$\qquad$$\qquad$\ \ Post
+%  \[
+%\widehat\tau=
+%  \begin{bmatrix}
+%-\omega_1 &-\omega_2 &-\omega_3 &-\omega_4 &-\omega_5  &\ldots &\frac{1}{4}&\frac{1}{4}&\frac{1}{4}&\frac{1}{4}\\
+%\end{bmatrix}
+%  \begin{bmatrix}
+%  Y_{C1,1} & Y_{C1,2} & Y_{C1,3} & Y_{C1,4} & Y_{C1,5} & Y_{C1,6} & \ldots & \cellcolor{lightgray} Y_{C1,T-2} & \cellcolor{lightgray} Y_{C1,T-1} & \cellcolor{lightgray} Y_{1,T} \\
+%  Y_{C2,1} & Y_{C2,2} & Y_{C2,3} & Y_{C2,4} & Y_{C2,5} & Y_{C2,6} & \ldots & \cellcolor{lightgray} Y_{C2,T-2} & \cellcolor{lightgray} Y_{C2,T-1} & \cellcolor{lightgray} Y_{C2,T} \\
+%  Y_{C3,1} & Y_{C3,2} & Y_{C3,3} & Y_{C3,4} & Y_{C3,5} & Y_{C3,6} & \ldots & \cellcolor{lightgray} Y_{C3,T-2} & \cellcolor{lightgray} Y_{C3,T-1} & \cellcolor{lightgray} Y_{C3,T} \\
+%  Y_{C4,1} & Y_{C4,2} & Y_{C4,3} & Y_{C4,4} & Y_{C4,5} & Y_{C4,6} & \ldots & \cellcolor{lightgray} Y_{C4,T-2} & \cellcolor{lightgray} Y_{C4,T-1} & \cellcolor{lightgray} Y_{C4,T} \\
+%  Y_{C5,1} & Y_{C5,2} & Y_{C5,3} & Y_{C5,4} & Y_{C5,5} & Y_{C5,6} & \ldots & \cellcolor{lightgray} Y_{C5,T-2} & \cellcolor{lightgray} Y_{C5,T-1} & \cellcolor{lightgray} Y_{C5,T} \\
+% \vdots &\vdots &\vdots &\vdots &\vdots &\vdots &\ddots &\vdots &\vdots &\\
+%  \cellcolor{lightgray}Y_{T1,1} & \cellcolor{lightgray}Y_{T1,2} & \cellcolor{lightgray}Y_{T1,3} & \cellcolor{lightgray}Y_{T1,4} & \cellcolor{lightgray}Y_{T1,5} & \cellcolor{lightgray}Y_{T1,6} & \cellcolor{lightgray}\ldots & \cellcolor{lightgray} Y_{T1,T-2} & \cellcolor{lightgray} Y_{T1,T-1} & \cellcolor{lightgray} Y_{T1,T} \\
+%  \cellcolor{lightgray}Y_{T2,1} & \cellcolor{lightgray}Y_{T2,2} & \cellcolor{lightgray}Y_{T2,3} & \cellcolor{lightgray}Y_{T2,4} & \cellcolor{lightgray}Y_{T2,5} & \cellcolor{lightgray}Y_{T2,6} & \cellcolor{lightgray}\ldots & \cellcolor{lightgray} Y_{T2,T-2} & \cellcolor{lightgray} Y_{T2,T-1} & \cellcolor{lightgray} Y_{T2,T} \\
+%  \cellcolor{lightgray}Y_{T3,1} & \cellcolor{lightgray}Y_{T3,2} & \cellcolor{lightgray}Y_{T3,3} & \cellcolor{lightgray}Y_{T3,4} & \cellcolor{lightgray}Y_{T3,5} & \cellcolor{lightgray}Y_{T3,6} & \cellcolor{lightgray}\ldots & \cellcolor{lightgray} Y_{T3,T-2} & \cellcolor{lightgray} Y_{T3,T-1} & \cellcolor{lightgray} Y_{T3,T} \\
+%  \cellcolor{lightgray}Y_{T4,1} & \cellcolor{lightgray}Y_{T4,2} & \cellcolor{lightgray}Y_{T4,3} & \cellcolor{lightgray}Y_{T4,4} & \cellcolor{lightgray}Y_{T4,5} & \cellcolor{lightgray}Y_{T4,6} & \cellcolor{lightgray}\ldots & \cellcolor{lightgray} Y_{T4,T-2} & \cellcolor{lightgray} Y_{T4,T-1} & \cellcolor{lightgray} Y_{T4,T} \\
+%\end{bmatrix}_{N\times T}
+%\begin{bmatrix}
+%  -\lambda_1\\
+%  -\lambda_2\\
+%  -\lambda_3\\
+%  -\lambda_4\\
+%  -\lambda_5\\
+%  -\lambda_6\\
+%  \vdots\\
+%  1/3\\
+%  1/3\\
+%  1/3
+%\end{bmatrix}
+%\]
+
+
+
+\end{document}

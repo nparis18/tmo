@@ -19,3 +19,4 @@ SJ/temp/log/
 # but keep sjlog example logs used by the paper
 !SJ/paper/examples/*.tex.log
 !SJ/paper/examples/*.log.tex
+*.pp

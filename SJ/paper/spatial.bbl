@@ -1,0 +1,90 @@
+\ifnum 14=1 \def\bibname{Reference}
+\else \def\bibname{References} \fi
+\begin{thebibliography}{14}
+\expandafter\ifx\csname natexlab\endcsname\relax\def\natexlab#1{#1}\fi
+\expandafter\ifx\csname url\endcsname\relax
+  \def\url#1{\texttt{#1}}\fi
+\expandafter\ifx\csname urlprefix\endcsname\relax\def\urlprefix{URL }\fi
+
+\bibitem[{Cameron and Miller(2015)}]{CameronMiller2015}
+Cameron, A.~C., and D.~L. Miller. 2015.
+\newblock A Practitioner's Guide to Cluster-Robust Inference.
+\newblock \emph{Journal of Human Resources} 50(2): 317--372.
+
+\bibitem[{Conley(1999)}]{Conley1999}
+Conley, T. 1999.
+\newblock GMM estimation with cross sectional dependence.
+\newblock \emph{Journal of Econometrics} 92(1): 1--45.
+
+\bibitem[{DellaVigna et~al.(2025)DellaVigna, Imbens, Kim, and
+  Ritzwoller}]{Dellavignaetal2025}
+DellaVigna, S., G.~Imbens, W.~Kim, and D.~M. Ritzwoller. 2025.
+\newblock Using Multiple Outcomes to Adjust Standard Errors for Spatial
+  Correlation.
+\urlprefix\url{https://arxiv.org/abs/2504.13295.}
+\bibitem[{Eicker(1967)}]{Eicker1967}
+Eicker, F. 1967.
+\newblock Limit theorems for regressions with unequal and dependent errors.
+\newblock In \emph{Proceedings of the Fifth Berkeley Symposium on Mathematical
+  Statistics and Probability}, vol.~1,  59--82. University of California Press.
+
+\bibitem[{Huber(1967)}]{Huber1967}
+Huber, P.~J. 1967.
+\newblock The behavior of maximum likelihood estimates under nonstandard
+  conditions.
+\newblock In \emph{Proceedings of the Fifth Berkeley Symposium on Mathematical
+  Statistics and Probability}, vol.~1,  221--233. University of California
+  Press.
+
+\bibitem[{Liang and Zeger(1986)}]{LiangZeger1986}
+Liang, K.-Y., and S.~L. Zeger. 1986.
+\newblock Longitudinal data analysis using generalized linear models.
+\newblock \emph{Biometrika} 73(1): 13--22.
+
+\bibitem[{Long and Ervin(2000)}]{LongErwin2000}
+Long, J.~S., and L.~H. Ervin. 2000.
+\newblock {Using Heteroscedasticity Consistent Standard Errors in the Linear
+  Regression Model}.
+\newblock \emph{The American Statistician} 54(3): 217--224.
+
+\bibitem[{MacKinnon and White(1985)}]{MackinnonWhite1985}
+MacKinnon, J.~G., and H.~White. 1985.
+\newblock Some heteroskedasticity-consistent covariance matrix estimators with
+  improved finite sample properties.
+\newblock \emph{Journal of Econometrics} 29(3): 305--325.
+
+\bibitem[{Moulton(1986)}]{Moulton1986}
+Moulton, B.~R. 1986.
+\newblock Random group effects and the precision of regression estimates.
+\newblock \emph{Journal of Econometrics} 32: 385--397.
+
+\bibitem[{Moulton(1990)}]{Moulton1990}
+---------. 1990.
+\newblock {An Illustration of a Pitfall in Estimating the Effects of Aggregate
+  Variables on Micro Units}.
+\newblock \emph{The Review of Economics and Statistics} 72(2): 334--338.
+
+\bibitem[{M{\"u}ller and Watson(2022{\natexlab{a}})}]{MullerWatson2022b}
+M{\"u}ller, U.~K., and M.~W. Watson. 2022{\natexlab{a}}.
+\newblock Spatial Correlation Robust Inference in Linear Regression and Panel
+  Models.
+\newblock \emph{Journal of Business \& Economic Statistics} 41(4): 1050--1064.
+
+\bibitem[{M{\"u}ller and Watson(2022{\natexlab{b}})}]{MullerWatson2022}
+---------. 2022{\natexlab{b}}.
+\newblock Spatial Correlation Robust Inference.
+\newblock \emph{Econometrica} 90(6): 2901--2935.
+
+\bibitem[{Rogers(1993)}]{Rogers1993}
+Rogers, W.~H. 1993.
+\newblock sg17: Regression standard errors in clustered samples.
+\newblock \emph{Stata Technical Bulletin} 13: 19--23.
+\newblock Reprinted in Stata Technical Bulletin Reprints, Vol. 3, pp. 88--94.
+
+\bibitem[{White(1980)}]{white80}
+White, H. 1980.
+\newblock A heteroskedasticity-consistent covariance matrix estimator and a
+  direct test for heteroskedasticity.
+\newblock \emph{Econometrica} 48: 817--838.
+
+\end{thebibliography}

@@ -110,22 +110,27 @@ restore
 
 destring GEOID, replace
 merge 1:1 GEOID using `county_differences', keep(3) nogen
-gen s_1 = _CX
-gen s_2 = _CY
+* scpc latlong convention: s_1 = latitude, s_2 = longitude
+* (spshape2dta centroids: _CX = longitude, _CY = latitude)
+gen s_1 = _CY
+gen s_2 = _CX
 
 qui reg PIN_persincpc_d EDU_college_d, r
+gen byte insample = e(sample)
 scpc, latlong
 
+* Wfin rows follow the estimation sample only; restrict accordingly
 mata:
-    W2 = Wfin[, 2..cols(Wfin)] // drop constants
-    P  = W2*W2'                // kernel SCPC
+    W2 = Wfin[, 2..cols(Wfin)] // drop constant (col 1)
+    P  = W2*W2'                // implicit SCPC pair-weight kernel
 
-    id = st_data(., "_ID")
+    sel = selectindex(st_data(., "insample"))
+    id  = st_data(., "_ID", "insample")
     iTulsa = selectindex(id:==`tulsa_id')[1]
 
     w = abs(P[iTulsa, .])'
     st_addvar("double", "scpc_w")
-    st_store(., "scpc_w", w)
+    st_store(sel, "scpc_w", w)
 end
 xtile scpc_bin = scpc_w, nq(6)
 
@@ -153,6 +158,26 @@ qui do "$ADO/tmo.ado"
 qui tmo, cmd(reg PIN_persincpc_d EDU_college_d [fw = weight]) x(EDU_college_d) ylist(`ylist') i(fips) savedyad file("$TMP/maps")
 scalar thres = e(threshold)
 restore
+
+*--- (5b) Optional: rank counties by number of above-threshold partners
+*    Useful for choosing the focal county of the four maps. Set to 1 to run.
+*    (2026-07: Tulsa=33 pairs; top counties: Winnebago WI=192, Walworth WI=191,
+*     Jefferson WI=188, Wood OH=169 -- Great Lakes manufacturing belt)
+local findfocal 0
+if `findfocal'==1 {
+    preserve
+    use "$TMP/maps_dyad.dta", clear
+    keep if id1!=id2
+    gen byte above = (abs(corr)>=thres) & !missing(corr)
+    * stack so each pair counts for both of its counties
+    expand 2, gen(dup)
+    gen fips = cond(dup==0, id1, id2)
+    collapse (sum) nabove=above, by(fips)
+    gsort -nabove
+    di as result _n "Top 10 counties by number of pairs above the TMO threshold:"
+    li fips nabove in 1/10, noobs clean
+    restore
+}
 
 preserve
 use "$TMP/maps_dyad.dta", clear

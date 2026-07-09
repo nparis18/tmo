@@ -10,8 +10,10 @@ Dependence"* (DellaVigna, Imbens, Kim, Ritzwoller, Clarke and Parı́s).
 
 ```
 ├── src/                 Stata package (what gets installed)
-│   ├── tmo.ado          Current tmo command
-│   ├── tmo_new.ado      Development version (tmo_NP): plots, SCPC/Conley combos
+│   ├── tmo.ado          Release tmo command
+│   ├── dev/tmo.ado      Development version (also named tmo): faster panel/IV,
+│   │                    adds areg/ivregress. Never load both in one session
+│   │                    (mata function collisions). Select via $TMOSRC in codeSj.do
 │   ├── tmo.sthlp        Help file
 │   ├── tmo.pkg          Package file
 │   └── stata.toc        Table of contents for net install

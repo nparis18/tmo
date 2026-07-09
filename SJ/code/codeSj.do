@@ -23,7 +23,13 @@ global DAT  "$ROOT/example"
 global PPR  "$SJ/paper"
 global FIG  "$SJ/paper/figures"
 
-qui do "$ROOT/src/tmo.ado"
+* Which tmo version to use. Both files define a program called -tmo-, so the
+* sjlog output always displays the command as tmo. NEVER load both in one
+* session: their mata functions collide (e.g. corr_resid() signatures differ).
+*   $ROOT/src      = release version (no areg/ivregress support)
+*   $ROOT/src/dev  = development version (faster panel/IV; adds areg, ivregress)
+global TMOSRC "$ROOT/src/dev"
+qui do "$TMOSRC/tmo.ado"
 
 *-------------------------------------------------------------------------------
 *--- (1) County example (OLS): main illustrative example + figures

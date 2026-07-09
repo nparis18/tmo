@@ -1,7 +1,7 @@
-*! version 0.9.0b3 2025-04-22
+*! version 0.9.0b3-dev 2025-09-02 -- development version (program named tmo); do NOT load together with src/tmo.ado in one session (mata name collisions)
 
-capture program drop tmo_NP
-program define tmo_NP, eclass
+capture program drop tmo
+program define tmo, eclass
     version 13
 
     syntax, ///

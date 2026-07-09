@@ -778,7 +778,7 @@ program define tmo, eclass
         mat tmo_results[1,3] = beta/tmo_se
         mat tmo_results[1,4] = 2*ttail(df_r, abs(beta/tmo_se))
         scalar lb = beta - invttail(df_r,0.025)*tmo_se
-        scalar ub = beta + invttail(df_r,0.075)*tmo_se
+        scalar ub = beta + invttail(df_r,0.025)*tmo_se
         mat tmo_results[1,5] = lb
         mat tmo_results[1,6] = ub
         //matlist tmo_results, border(all) cspec(o2& %20s | %9.3f o2 & %9.3f o2 & %6.2f o2 & %4.3f o2 & %9.3f o2 & %9.3f o2 &) rspec(&-&)

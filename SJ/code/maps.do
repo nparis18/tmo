@@ -24,6 +24,15 @@ graph set window fontface "Arial Narrow"
 
 local makeshape 0
 
+* Focal county for ALL maps. Default: Tulsa, OK (fips 40143).
+* Clearest TMO alternative: Winnebago, WI -> focalfips 55139, ST "55", CTY "139"
+* (see the findfocal block in section 5b: Winnebago has 192 above-threshold
+*  pairs vs Tulsa's 33). Change these three locals to re-centre every map.
+local focalfips 40143
+local focalST   "40"
+local focalCTY  "143"
+local focal_cond COUNTYFP=="`focalCTY'"&STATEFP=="`focalST'"
+
 *-------------------------------------------------------------------------------
 *--- (1) Make shape files
 *-------------------------------------------------------------------------------
@@ -45,16 +54,15 @@ geoframe create states   "$DAT/maps/cb_2018_us_state_20m", shp("$DAT/maps/cb_201
 local mainland STATEFP!="02"&STATEFP!="15"&STATEFP!="72"
 
 frame change counties
-* Identify Tulsa county, Oklahoma, for highlighting
-gen Tulsa = 1 if STATEFP=="40"
-local Tulsa_cond COUNTYFP=="143"&STATEFP=="40"
+* Identify the focal county's state for highlighting
+gen focal = 1 if STATEFP=="`focalST'"
 
 frame change states
-gen Tulsa = 1 if STATEFP=="40"
+gen focal = 1 if STATEFP=="`focalST'"
 
 #delimit ;
-geoplot (area counties Tulsa if `mainland', lwidth(none) lcolor(white) label("1") missing(label("No weight")))
-        (label counties NAME if `Tulsa_cond', color(white) size(vsmall))
+geoplot (area counties focal if `mainland', lwidth(none) lcolor(white) label("1") missing(label("No weight")))
+        (label counties NAME if `focal_cond', color(white) size(vsmall))
         (line states   if `mainland', lwidth(vthin))
         , project ;
 #delimit cr
@@ -65,32 +73,31 @@ graph export "$OUT/state_clustering.pdf", replace
 *-------------------------------------------------------------------------------
 *--- (3) Make Conley map
 *-------------------------------------------------------------------------------
-* Tulsa coordinates
-local ref_long = -95.940139
-local ref_lat  = 36.119398
-
 // spshape2dta creates centroid coordinates _CX and _CY
 // We will use these to calculate distances
 frame change counties
 gen distance = .
 
-// Set up the sp anvironment
+// Set up the sp environment
 spset, modify coordsys(latlong, miles)
 
-* Find the _ID for Tulsa County, OK
-sum _ID if `Tulsa_cond'
-local tulsa_id = r(mean)
+* Find the _ID for the focal county
+sum _ID if `focal_cond'
+local focal_id = r(mean)
 
 forvalues s=1/`=_N' {
-    qui: spdistance `s' `tulsa_id'
+    qui: spdistance `s' `focal_id'
     qui replace distance = r(distance) if _ID==`s'
 }
-replace distance = . if distance>300
+
+* Plot the Conley Bartlett weight (decays with distance; 0 beyond 300 miles)
+* rather than raw distance, so colour intensity = weight in the estimator
+gen conley_w = 1 - distance/300 if distance<=300
 
 #delimit ;
-geoplot (area counties distance if `mainland', lwidth(none) lcolor(white) 
-            label(1 "1" 2 "2" 3 "3" 4 "4" 5 "5" 6 "6") missing(label("No weight")))
-        (label counties NAME if `Tulsa_cond', color(white) size(vsmall))
+geoplot (area counties conley_w if `mainland', lwidth(none) lcolor(white)
+            levels(6) missing(label("No weight")))
+        (label counties NAME if `focal_cond', color(white) size(vsmall))
         (line states   if `mainland', lwidth(vthin))
         , project legend(pos(5));
 #delimit cr
@@ -126,9 +133,9 @@ mata:
 
     sel = selectindex(st_data(., "insample"))
     id  = st_data(., "_ID", "insample")
-    iTulsa = selectindex(id:==`tulsa_id')[1]
+    iFocal = selectindex(id:==`focal_id')[1]
 
-    w = abs(P[iTulsa, .])'
+    w = abs(P[iFocal, .])'
     st_addvar("double", "scpc_w")
     st_store(sel, "scpc_w", w)
 end
@@ -137,7 +144,7 @@ xtile scpc_bin = scpc_w, nq(6)
 #delimit ;
 geoplot (area counties scpc_bin if `mainland', lwidth(none) lcolor(white) levels(6)
         label(1 "1" 2 "2" 3 "3" 4 "4" 5 "5" 6 "6") missing(label("No weight")))
-        (label counties NAME if `Tulsa_cond', color(black) size(vsmall))
+        (label counties NAME if `focal_cond', color(black) size(vsmall))
         (line states if `mainland', lwidth(vthin))
         , project legend(pos(5));
 #delimit cr
@@ -181,40 +188,77 @@ if `findfocal'==1 {
 
 preserve
 use "$TMP/maps_dyad.dta", clear
-keep if id2==40143 | id1==40143
-gen idAux = id1 if id1>40143
-replace id1=id2 if id1>40143
-replace id2=idAux if idAux!=.
-keep id2 corr
-rename id2 GEOID
-replace corr =abs(corr)
-gen threshold= corr>thres
+keep if (id2==`focalfips' | id1==`focalfips') & id1!=id2
+gen GEOID = cond(id1==`focalfips', id2, id1)
+keep GEOID corr
+replace corr = abs(corr)
 
 tempfile corr
 save `corr'
 restore
 
-local mainland STATEFP!="02"&STATEFP!="15"&STATEFP!="72"
-local Tulsa_cond COUNTYFP=="143"&STATEFP=="40"
-
 * Merge with counties frame
 frame change counties
 destring GEOID, replace
-merge 1:1 GEOID using `corr'
+merge 1:1 GEOID using `corr', keep(1 3) nogen
 
-gen mark= ((abs(corr)>=thres) & !missing(corr))
-xtile tmo_bin = corr, nq(6)
+* TMO keeps ONLY pairs with |corr| >= threshold: colour those, grey out the rest
+gen byte tmosel = ((corr>=thres) & !missing(corr))
+gen tmo_kept = corr if tmosel
 
-* Plot the TMO correlations
 #delimit ;
-geoplot (area counties tmo_bin if `mainland', lwidth(none) lcolor(white) levels(6)
-        label(1 "1" 2 "2" 3 "3" 4 "4" 5 "5" 6 "6") missing(label("No weight")))
-        (label counties NAME if `Tulsa_cond', color(black) size(vsmall))
+geoplot (area counties tmo_kept if `mainland', lwidth(none) lcolor(white)
+        levels(4) missing(label("No weight")))
+        (label counties NAME if `focal_cond', color(black) size(vsmall))
         (line states if `mainland', lwidth(vthin))
         , project legend(pos(5));
 #delimit cr
 
 graph export "$OUT/tmo.pdf", replace
+
+*-------------------------------------------------------------------------------
+*--- (6) Combined map: TMO + Conley (uniform kernel, `conleycut' miles)
+*    Pairs entering the variance: Conley disk, TMO pairs beyond it, or both.
+*    (The optimal threshold is unchanged when combining, so thres from (5)
+*     applies; verified 2026-07: same .4329 with and without distthreshold.)
+*-------------------------------------------------------------------------------
+local conleycut 100
+
+gen cat = .
+replace cat = 1 if distance<=`conleycut'
+replace cat = 2 if tmosel==1 & (distance>`conleycut' | missing(distance))
+replace cat = 3 if tmosel==1 & distance<=`conleycut'
+label define catl 1 "Conley (<=`conleycut' mi)" 2 "TMO pair" 3 "Both", replace
+label values cat catl
+
+#delimit ;
+geoplot (area counties cat if `mainland', discrete lwidth(none) lcolor(white)
+        missing(label("No weight")))
+        (label counties NAME if `focal_cond', color(black) size(vsmall))
+        (line states if `mainland', lwidth(vthin))
+        , project legend(pos(5));
+#delimit cr
+
+graph export "$OUT/tmo_conley.pdf", replace
+
+*-------------------------------------------------------------------------------
+*--- (7) Combined map: TMO + SCPC
+*    The combined estimator uses the raw covariance for TMO-selected pairs and
+*    the SCPC kernel weight for all remaining pairs. Background: SCPC kernel
+*    bins from (4); red: TMO-selected pairs from (5).
+*-------------------------------------------------------------------------------
+#delimit ;
+geoplot (area counties scpc_bin if `mainland' & tmosel!=1, lwidth(none)
+        lcolor(white) levels(6) label(1 "1" 2 "2" 3 "3" 4 "4" 5 "5" 6 "6")
+        missing(label("No weight")))
+        (area counties if `mainland' & tmosel==1, color(red) lwidth(none)
+        label("TMO pair"))
+        (label counties NAME if `focal_cond', color(black) size(vsmall))
+        (line states if `mainland', lwidth(vthin))
+        , project legend(pos(5));
+#delimit cr
+
+graph export "$OUT/tmo_scpc.pdf", replace
 
 * Clean up
 frame change default

@@ -923,7 +923,7 @@ program define tmo, eclass
             mat tmo_results[1,3] = beta/tmo_se
             mat tmo_results[1,4] = 2*ttail(df_r, abs(beta/tmo_se))
             scalar lb = beta - invttail(df_r,0.025)*tmo_se
-            scalar ub = beta + invttail(df_r,0.075)*tmo_se
+            scalar ub = beta + invttail(df_r,0.025)*tmo_se
             mat tmo_results[1,5] = lb
             mat tmo_results[1,6] = ub
             //matlist tmo_results, border(all) cspec(o2& %20s | %9.3f o2 & %9.3f o2 & %6.2f o2 & %4.3f o2 & %9.3f o2 & %9.3f o2 &) rspec(&-&)
@@ -1099,7 +1099,6 @@ mata
             IdRes1Xtilde  = select((id_widerowvec, id_widecolvec, res1_widerowvec, res1_widecolvec, xtilde_widerowvec, xtilde_widecolvec), keep_th)
             ResXtildeVec  = (IdRes1Xtilde[.,3]:* IdRes1Xtilde[.,4]):*(IdRes1Xtilde[.,5]:* IdRes1Xtilde[.,6])
             ResXtildeVec  = (IdRes1Xtilde[.,1..2], ResXtildeVec)
-            ResXtildeVec
         }
         else{
             real keep_cl

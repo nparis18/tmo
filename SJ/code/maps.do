@@ -8,7 +8,6 @@ vers 16
 clear all
 set more off
 cap log close
-
 *-------------------------------------------------------------------------------
 *--- (0) Set up the environment
 *-------------------------------------------------------------------------------
@@ -150,13 +149,13 @@ local ylist `r(varlist)'
 gen weight=1
 
 qui do "$ADO/tmo.ado"
-cd "$TMP"
-qui tmo, cmd(reg PIN_persincpc_d EDU_college_d [fw = weight]) x(EDU_college_d) ylist(`ylist') i(fips) savedyad
+* NB: savedyad requires file(); dyad data saved as $TMP/maps_dyad.dta
+qui tmo, cmd(reg PIN_persincpc_d EDU_college_d [fw = weight]) x(EDU_college_d) ylist(`ylist') i(fips) savedyad file("$TMP/maps")
 scalar thres = e(threshold)
 restore
 
 preserve
-use "$TMP/_dyad.dta", clear
+use "$TMP/maps_dyad.dta", clear
 keep if id2==40143 | id1==40143
 gen idAux = id1 if id1>40143
 replace id1=id2 if id1>40143
@@ -193,6 +192,4 @@ geoplot (area counties tmo_bin if `mainland', lwidth(none) lcolor(white) levels(
 graph export "$OUT/tmo.pdf", replace
 
 * Clean up
-drop COUNTYFP_str corr corr_category
 frame change default
-frame drop tmo_data

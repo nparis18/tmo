@@ -20,3 +20,4 @@ SJ/temp/log/
 !SJ/paper/examples/*.tex.log
 !SJ/paper/examples/*.log.tex
 *.pp
+SJ/temp/

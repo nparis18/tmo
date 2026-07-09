@@ -22,6 +22,12 @@ global TMP "$ROOT/SJ/temp"
 
 graph set window fontface "Arial Narrow"
 
+* Load scpc FIRST, then tmo: scpc.ado runs -mata mata clear- when it loads,
+* which would wipe tmo's mata functions (corr_resid etc., error r(3499)) if
+* scpc were auto-loaded later, e.g. inside tmo's scpc_cmd() option.
+qui do "$ROOT/scpc_tmo/scpc.ado"
+qui do "$ADO/tmo.ado"
+
 local makeshape 0
 
 * Focal county for ALL maps. Default: Tulsa, OK (fips 40143).
@@ -160,7 +166,6 @@ qui ds fips stfips PIN_persincpc_d EDU_college_d, not
 local ylist `r(varlist)'
 gen weight=1
 
-qui do "$ADO/tmo.ado"
 * NB: savedyad requires file(); dyad data saved as $TMP/maps_dyad.dta
 qui tmo, cmd(reg PIN_persincpc_d EDU_college_d [fw = weight]) x(EDU_college_d) ylist(`ylist') i(fips) savedyad file("$TMP/maps")
 scalar thres = e(threshold)
@@ -243,15 +248,51 @@ graph export "$OUT/tmo_conley.pdf", replace
 
 *-------------------------------------------------------------------------------
 *--- (7) Combined map: TMO + SCPC
-*    The combined estimator uses the raw covariance for TMO-selected pairs and
-*    the SCPC kernel weight for all remaining pairs. Background: SCPC kernel
-*    bins from (4); red: TMO-selected pairs from (5).
+*    Built from an ACTUAL combined run (tmo with scpc_cmd + savedyad), so both
+*    layers come from what the estimator does internally: TMO-selected pairs
+*    (|corr| >= threshold) use the raw covariance; every remaining pair enters
+*    through the SCPC kernel weight, saved pair-level in the dyad as Wfin
+*    ( = [W2*W2']_{ll'}/q, cf. RUN SCPC section of tmo.ado).
 *-------------------------------------------------------------------------------
+preserve
+use "$DAT/maps/cb_2018_us_county_20m.dta", clear
+destring GEOID, replace
+rename GEOID fips
+keep fips _CX _CY
+tempfile cent
+save `cent'
+
+use "$EXA/county_differences.dta", clear
+merge 1:1 fips using `cent', keep(3) nogen
+qui ds fips stfips PIN_persincpc_d EDU_college_d _CX _CY, not
+local ylist `r(varlist)'
+
+* scpc_cmd is incompatible with weights, so no [fw=] here
+qui tmo, cmd(reg PIN_persincpc_d EDU_college_d) x(EDU_college_d) ///
+    ylist(`ylist') i(fips) lat(_CY) lon(_CX) ///
+    scpc_cmd(reg PIN_persincpc_d EDU_college_d, r) ///
+    savedyad file("$TMP/mapsS")
+scalar thresS = e(threshold)
+
+use "$TMP/mapsS_dyad.dta", clear
+keep if (id1==`focalfips' | id2==`focalfips') & id1!=id2
+gen GEOID = cond(id1==`focalfips', id2, id1)
+gen byte tmoselS = (abs(corr)>=thresS) & !missing(corr)
+gen scpc_k = abs(Wfin)
+keep GEOID tmoselS scpc_k
+tempfile combS
+save `combS'
+restore
+
+frame change counties
+merge 1:1 GEOID using `combS', keep(1 3) nogen
+xtile scpc_kbin = scpc_k if tmoselS!=1, nq(6)
+
 #delimit ;
-geoplot (area counties scpc_bin if `mainland' & tmosel!=1, lwidth(none)
+geoplot (area counties scpc_kbin if `mainland' & tmoselS!=1, lwidth(none)
         lcolor(white) levels(6) label(1 "1" 2 "2" 3 "3" 4 "4" 5 "5" 6 "6")
         missing(label("No weight")))
-        (area counties if `mainland' & tmosel==1, color(red) lwidth(none)
+        (area counties if `mainland' & tmoselS==1, color(red) lwidth(none)
         label("TMO pair"))
         (label counties NAME if `focal_cond', color(black) size(vsmall))
         (line states if `mainland', lwidth(vthin))

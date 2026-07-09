@@ -84,8 +84,11 @@ program define tmo, eclass
             qui keep if !missing(`longitude') & !missing(`latitude') & `tmo_sample'
 
             rename `latitude' s_1
-            rename `longitude' s_2 
-            
+            rename `longitude' s_2
+            * scpc reads coordinates via st_data(.,"s_*"), which expands in
+            * PHYSICAL variable order; force s_1 before s_2 or lat/lon are
+            * silently swapped whenever the lon variable precedes lat
+            order s_1 s_2
             qui hashsort `idvar'
             qui `scpc_cmd'
             qui keep if e(sample)
@@ -773,33 +776,33 @@ program define tmo, eclass
         mat tmo_results = J(1,6,.)
         mat rownames tmo_results = "`x'"
         mat colnames tmo_results = "Coef" "TMO SE" "t" "P>|t|" "95% Conf" "Interval"
-        mat tmo_results[1,1] = beta
-        mat tmo_results[1,2] = tmo_se
-        mat tmo_results[1,3] = beta/tmo_se
-        mat tmo_results[1,4] = 2*ttail(df_r, abs(beta/tmo_se))
-        scalar lb = beta - invttail(df_r,0.025)*tmo_se
-        scalar ub = beta + invttail(df_r,0.025)*tmo_se
-        mat tmo_results[1,5] = lb
-        mat tmo_results[1,6] = ub
+        mat tmo_results[1,1] = scalar(beta)
+        mat tmo_results[1,2] = scalar(tmo_se)
+        mat tmo_results[1,3] = scalar(beta)/scalar(tmo_se)
+        mat tmo_results[1,4] = 2*ttail(scalar(df_r), abs(scalar(beta)/scalar(tmo_se)))
+        scalar lb = scalar(beta) - invttail(scalar(df_r),0.025)*scalar(tmo_se)
+        scalar ub = scalar(beta) + invttail(scalar(df_r),0.025)*scalar(tmo_se)
+        mat tmo_results[1,5] = scalar(lb)
+        mat tmo_results[1,6] = scalar(ub)
         //matlist tmo_results, border(all) cspec(o2& %20s | %9.3f o2 & %9.3f o2 & %6.2f o2 & %4.3f o2 & %9.3f o2 & %9.3f o2 &) rspec(&-&)
 
         mat tmo_details = J(5,1,.)
         mat rowname tmo_details = "Optimal threshold" "% of off-diag in SE est." "% >= threshold (excl. clusters/Conley)" "# outcomes" "Degrees of freedom" 
-        mat tmo_details[1,1] = thres
-        mat tmo_details[2,1] = offdP*100
-        mat tmo_details[3,1] = offdPnocl*100
-        mat tmo_details[4,1] = D
-        mat tmo_details[5,1] = df
+        mat tmo_details[1,1] = scalar(thres)
+        mat tmo_details[2,1] = scalar(offdP)*100
+        mat tmo_details[3,1] = scalar(offdPnocl)*100
+        mat tmo_details[4,1] = scalar(D)
+        mat tmo_details[5,1] = scalar(df)
         
 
-        matrix b = beta
-        matrix V = tmo_se^2
+        matrix b = scalar(beta)
+        matrix V = scalar(tmo_se)^2
 
         matrix colnames b = `x'
         matrix colnames V = `x'
         matrix rownames V = `x'
         
-        local df = df_r
+        local df = scalar(df_r)
         ereturn post b V, dof(`df') obs(`nobs') esample(`touse') depname(`depvar')
 
         ereturn scalar r2 = `r2'
@@ -812,22 +815,22 @@ program define tmo, eclass
 
         //ereturn display, level(`level')
         
-        ereturn scalar beta = beta
-        ereturn scalar orig_se = se
-        ereturn scalar tmo_se = tmo_se
-        ereturn scalar lb = lb
-        ereturn scalar ub = ub
-        ereturn scalar threshold = thres
-        ereturn scalar pct_ge_thres = offdP*100
-        ereturn scalar pct_ge_thres_nocl = offdPnocl*100
-        ereturn scalar T = T
-        ereturn scalar N_loc = N
-        ereturn scalar N_clust = N_clust
-        ereturn scalar N_outcomes = D
-        ereturn scalar N = N_obs
-        ereturn scalar dof = df
-        ereturn scalar finite_sample_dof = dof_adj
-        ereturn scalar df_r = df_r
+        ereturn scalar beta = scalar(beta)
+        ereturn scalar orig_se = scalar(se)
+        ereturn scalar tmo_se = scalar(tmo_se)
+        ereturn scalar lb = scalar(lb)
+        ereturn scalar ub = scalar(ub)
+        ereturn scalar threshold = scalar(thres)
+        ereturn scalar pct_ge_thres = scalar(offdP)*100
+        ereturn scalar pct_ge_thres_nocl = scalar(offdPnocl)*100
+        ereturn scalar T = scalar(T)
+        ereturn scalar N_loc = scalar(N)
+        ereturn scalar N_clust = scalar(N_clust)
+        ereturn scalar N_outcomes = scalar(D)
+        ereturn scalar N = scalar(N_obs)
+        ereturn scalar dof = scalar(df)
+        ereturn scalar finite_sample_dof = scalar(dof_adj)
+        ereturn scalar df_r = scalar(df_r)
         ereturn scalar scpc_cv = ${scpc_cv}
 
     if "`saveest'"!="" {

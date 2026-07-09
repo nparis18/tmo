@@ -305,7 +305,7 @@ x(\dunderbar{\it varname}) ylist(\dunderbar{\it varlist}) \dunderbar{i}dvar(\dun
 \end{stsyntax}
 \subsection{Options}
 
-\noindent {\tt cmd(\it cmdline\rm )} \it cmdline\rm\ is the command that produces the regression of interest. \rm tmo currently supports regressions using \dunderbar{\tt regress}, \dunderbar{\tt reghdfe}, \dunderbar{\tt ivreg2}, or \dunderbar{\tt ivreghdfe}.
+\noindent {\tt cmd(\it cmdline\rm )} \it cmdline\rm\ is the command that produces the regression of interest. \rm tmo currently supports regressions using \dunderbar{\tt regress}, \dunderbar{\tt areg}, \dunderbar{\tt reghdfe}, \dunderbar{\tt ivregress}, \dunderbar{\tt ivreg2}, or \dunderbar{\tt ivreghdfe}.
 
 \noindent {\tt x(\dunderbar{\it varname})} Regressor of interest in \tt cmd \rm for which to estimate TMO standard errors. \rm tmo \it estimates the standard error for only this declared independent variable.
 
@@ -323,7 +323,11 @@ x(\dunderbar{\it varname}) ylist(\dunderbar{\it varlist}) \dunderbar{i}dvar(\dun
 
 \noindent {\tt longitude(\dunderbar{\it varname})} Longitude variable in signed decimal degrees.
 
-{\tt distthreshold(\it \#\rm )} Distance threshold in miles to allow for arbitrary correlation between pairs of locations that are \tt distthreshold \rm or fewer miles apart. Combines \rm tmo \it with a Conley adjustment using a uniform kernel. Requires \tt latitude \rm and \tt longitude.
+{\tt distthreshold(\it \#\rm )} Distance threshold to allow for arbitrary correlation between pairs of locations that are \tt distthreshold \rm or closer. Distances are measured in kilometres by default; see the {\tt miles} option. Combines \rm tmo \it with a Conley adjustment using a uniform kernel (but see \rm {\tt distkernel()}\it). Requires \tt latitude \rm and \tt longitude.
+
+\noindent {\tt miles} Measure distances for {\tt distthreshold()} in miles rather than kilometres.
+
+\noindent {\tt distkernel(\it str\rm )} Kernel for the distance-based adjustment; either {\tt uniform} (the default: pairs within {\tt distthreshold()} receive full weight) or {\tt bartlett} (pairs not selected by the TMO threshold receive weight $1-d_{ii^\prime}/b$, declining linearly to zero at the cutoff $b$, analogous to the pair-level SCPC combination). Requires {\tt distthreshold()}; may not be combined with {\tt scpc\_cmd()}.
 
 \subsubsection*{Saving Figures and Tables}
 {\tt filesuffix(\it str\rm )} Folder path and base filename for saving figures and results. Required for \tt plot \rm or \tt save \rm options.
@@ -348,23 +352,38 @@ x(\dunderbar{\it varname}) ylist(\dunderbar{\it varlist}) \dunderbar{i}dvar(\dun
 \noindent {\tt thresholdoff} Turns off the \rm tmo \it adjustment entirely.
 
 \subsubsection*{SCPC Options}
-{\tt scpc\_cmd ({\it cmdline}\rm)} \rm Command for regression of interest before applying SCPC adjustment. Combines \rm tmo  with the SCPC method from M\"uller and Watson (2022).
+{\tt scpc\_cmd ({\it cmdline}\rm)} \rm Command for regression of interest before applying SCPC adjustment. Combines \rm tmo  with the SCPC method from \citet{MullerWatson2022}: pairs selected by the TMO threshold enter the variance with their raw covariance, while all remaining pairs enter through the implicit SCPC kernel weight. Requires \tt latitude \rm and \tt longitude\rm.
 
 \noindent {\tt scpc\_uncond} Turns on the unconditional SCPC inference setting.
 \subsubsection{Returned Objects}
 \texttt{tmo} is an e-class command, and stores the following in \texttt{e()}:
 
-Scalars: 
+\noindent Scalars:
 
-\begin{tabular}{lp{10cm}}        
-      \texttt{e(ATT)}       & Average Treatment Effect on the Treated  \\
+\begin{tabular}{lp{9.5cm}}
+  \texttt{e(beta)}              & point estimate for the variable declared in {\tt x()} \\
+  \texttt{e(orig\_se)}          & standard error from the original command in {\tt cmd()} \\
+  \texttt{e(tmo\_se)}           & TMO-adjusted standard error \\
+  \texttt{e(lb)}, \texttt{e(ub)} & bounds of the TMO-adjusted 95\% confidence interval \\
+  \texttt{e(threshold)}         & optimal (or user-set) threshold $\hat\delta$ \\
+  \texttt{e(pct\_ge\_thres)}    & \% of off-diagonal pairs included in the variance \\
+  \texttt{e(pct\_ge\_thres\_nocl)} & \% of pairs over the threshold outside clusters/Conley \\
+  \texttt{e(N)}, \texttt{e(N\_loc)}, \texttt{e(N\_clust)} & observations, locations, and clusters \\
+  \texttt{e(T)}                 & time periods (panel case) \\
+  \texttt{e(N\_outcomes)}       & number of auxiliary outcomes used \\
+  \texttt{e(dof)}               & degrees of freedom of the fitted null distribution \\
+  \texttt{e(finite\_sample\_dof)} & finite-sample degrees-of-freedom adjustment \\
+  \texttt{e(df\_r)}             & residual degrees of freedom \\
+  \texttt{e(r2)}, \texttt{e(r2\_a)}, \texttt{e(rmse)} & fit statistics from the original command \\
+  \texttt{e(scpc\_cv)}          & SCPC critical value (when {\tt scpc\_cmd()} is used) \\
 \end{tabular}
 
-Matrices: 
-
 \vspace{3mm}
+\noindent Matrices:
+
+\vspace{1mm}
 \noindent
-The matrices {\tt e(b)} and {\tt e(V)} are included to facilitate the exportation of results from {\tt sdid} with routines such as {\tt estout}.
+The matrices {\tt e(b)} and {\tt e(V)} contain the point estimate and TMO-adjusted variance for the variable declared in {\tt x()}, facilitating the exportation of results with routines such as {\tt estout}.
 
 
 
@@ -436,9 +455,12 @@ Show that original estimator can be implemented by reg, reghdfe, areg.  Perhaps 
 
 \subsection{Alternative settings}
 \subsubsection{Combining {\tt tmo} with other spatial dependence procedures}
-Show model with just clustered OLS.  Then show with just Conley or Muller and Watson.  Then show just tmo (replicates original).  Now show joining cluster with tmo, and tmo with Muller and watson.
-
-Show output as table with estout.
+% TODO: narrative -- show model with just clustered OLS; then just Conley or
+% Muller and Watson; then just tmo (replicates original); then cluster+tmo and
+% tmo+Muller-Watson. Consider a summary table with estout.
+\begin{stlog}
+\input{examples/alternativeExample.tex.log}
+\end{stlog}
 
 \subsubsection{Cross-country data and the World Bank Databank}
 Show wbopendata with cross-country.  Democracy and growth??

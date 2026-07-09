@@ -8,6 +8,7 @@ program define tmo, eclass
         cmd(str) x(varname) ylist(varlist) Idvar(varname) ///
         [Timevar(varname)] ///
         [LATitude(varname)] [LONgitude(varname)] [DISTTHREShold(real 0)] [miles] ///
+        [DISTKernel(str)] ///
         [THREShold(real -9)] [thresholdoff] ///
         [MISSlimit(real 0.1)] ///
         [FILEsuffix(str)] ///
@@ -85,6 +86,10 @@ program define tmo, eclass
 
             rename `latitude' s_1
             rename `longitude' s_2
+            * scpc reads coordinates via st_data(.,"s_*"), which expands in
+            * PHYSICAL variable order; force s_1 before s_2 or lat/lon are
+            * silently swapped whenever the lon variable precedes lat
+            order s_1 s_2
             qui hashsort `idvar'
             qui `scpc_cmd'
             qui keep if e(sample)
@@ -141,10 +146,12 @@ program define tmo, eclass
     }
 
     * Assert that y and x are in cmd and y is the dependent variable
+    * (for ivregress the estimator -- 2sls/liml/gmm -- is word 2, depvar is word 3)
     local ycheck: word 2 of `cmd'
+    if "`spec'"=="ivregress" local ycheck: word 3 of `cmd'
 	if strpos("`cmd'","`y'")==0 | strpos("`cmd'","`x'")==0 | "`y'"!="`ycheck'" {
 		di as error "cmd must contain `y' and `x' and `y' must be independent var"
-		exit
+		exit 198
 	}
 
     * Assert that y appears only once in cmd
@@ -226,6 +233,21 @@ program define tmo, eclass
 	if "`idvar'"!="" & "`timevar'"!="" {
 		gisid `idvar' `timevar' if `tmo_sample'
 	}
+
+    * Validate distkernel() option
+    if "`distkernel'"=="" local distkernel uniform
+    if !inlist("`distkernel'","uniform","bartlett") {
+        di as error "distkernel() must be uniform or bartlett"
+        exit 198
+    }
+    if "`distkernel'"=="bartlett" & `distthreshold'<=0 {
+        di as error "distkernel(bartlett) requires distthreshold()"
+        exit 198
+    }
+    if "`distkernel'"=="bartlett" & "`scpc_cmd'"!="" {
+        di as error "distkernel(bartlett) cannot be combined with scpc_cmd()"
+        exit 198
+    }
 
     * Assert longitude and latitude provided if distthreshold!=0
     if ("`longitude'"=="" | "`latitude'"=="") & `distthreshold'!=0 {
@@ -732,13 +754,22 @@ program define tmo, eclass
                * Compute contribution to SE for each pair of locations
                 mata: ResXtildeVec = J(0,0,.)
 
+                * xxresxx is needed for ALL pairs (not just those over the
+                * threshold) when pairs can enter the SE via distance
+                * (distthreshold), when the SE-over-threshold grid is computed
+                * (plotse/saveplotseest), or when saving the full dyad
+                local swthres = `thres'
+                if `distthreshold'>0 | "`plotse'"!="" | "`saveplotseest'"!="" | "`savedyad'"!="" {
+                    local swthres = -1
+                }
+
                 //DC: THIS IS THE BOTTLENECK
                 if(`clusterOff') {
-                    mata: sandwich_crosssec(id_widerowvec, id_widecolvec, res1_widerowvec, res1_widecolvec, xtilde_widerowvec, xtilde_widecolvec, CovEpsVec, ResXtildeVec, `thres')
+                    mata: sandwich_crosssec(id_widerowvec, id_widecolvec, res1_widerowvec, res1_widecolvec, xtilde_widerowvec, xtilde_widecolvec, CovEpsVec, ResXtildeVec, `swthres')
                     local posSW = 3
                 }
                 else{
-                    mata: sandwich_crosssec(id_widerowvec, id_widecolvec, res1_widerowvec, res1_widecolvec, xtilde_widerowvec, xtilde_widecolvec, CovEpsVec, ResXtildeVec, `thres', same_cl)
+                    mata: sandwich_crosssec(id_widerowvec, id_widecolvec, res1_widerowvec, res1_widecolvec, xtilde_widerowvec, xtilde_widecolvec, CovEpsVec, ResXtildeVec, `swthres', same_cl)
                     local posSW = 4
                 }
             }
@@ -821,7 +852,11 @@ program define tmo, eclass
                 keep id1 id2 corr corr_fisher corr_fisher_abs q_iqr_abs offdiag
 
                 * Compute contribution to SE for each pair of locations
-                sandwich_panel, clusterOff(`clusterOff') nloc(`N') ntime(`T') th(`thres') noi
+                local swthres = `thres'
+                if `distthreshold'>0 | "`plotse'"!="" | "`saveplotseest'"!="" | "`savedyad'"!="" {
+                    local swthres = -1
+                }
+                sandwich_panel, clusterOff(`clusterOff') nloc(`N') ntime(`T') th(`swthres') noi
             }
             * Normalize contribution to variance
             mata: resxtildenorm(ResXtildeVec, xtilde_wgt, `posSW')
@@ -897,7 +932,7 @@ program define tmo, eclass
             use "`load'_dyad.dta", clear
         }
         * Compute TMO SE
-        est_tmo_se, dist_cutoff(`distthreshold') `thresholdoff'
+        est_tmo_se, dist_cutoff(`distthreshold') kernel(`distkernel') `thresholdoff'
 
         if ("`plotq'"!="" | "`plothist'"!="" ) {
             cap drop pdf_iqr
@@ -918,32 +953,32 @@ program define tmo, eclass
             mat tmo_results = J(1,6,.)
             mat rownames tmo_results = "`x'"
             mat colnames tmo_results = "Coef" "TMO SE" "t" "P>|t|" "95% Conf" "Interval"
-            mat tmo_results[1,1] = beta
-            mat tmo_results[1,2] = tmo_se
-            mat tmo_results[1,3] = beta/tmo_se
-            mat tmo_results[1,4] = 2*ttail(df_r, abs(beta/tmo_se))
-            scalar lb = beta - invttail(df_r,0.025)*tmo_se
-            scalar ub = beta + invttail(df_r,0.025)*tmo_se
-            mat tmo_results[1,5] = lb
-            mat tmo_results[1,6] = ub
+            mat tmo_results[1,1] = scalar(beta)
+            mat tmo_results[1,2] = scalar(tmo_se)
+            mat tmo_results[1,3] = scalar(beta)/scalar(tmo_se)
+            mat tmo_results[1,4] = 2*ttail(scalar(df_r), abs(scalar(beta)/scalar(tmo_se)))
+            scalar lb = scalar(beta) - invttail(scalar(df_r),0.025)*scalar(tmo_se)
+            scalar ub = scalar(beta) + invttail(scalar(df_r),0.025)*scalar(tmo_se)
+            mat tmo_results[1,5] = scalar(lb)
+            mat tmo_results[1,6] = scalar(ub)
             //matlist tmo_results, border(all) cspec(o2& %20s | %9.3f o2 & %9.3f o2 & %6.2f o2 & %4.3f o2 & %9.3f o2 & %9.3f o2 &) rspec(&-&)
 
             mat tmo_details = J(5,1,.)
             mat rowname tmo_details = "Optimal threshold" "% of off-diag in SE est." "% >= threshold (excl. clusters/Conley)" "# outcomes" "Degrees of freedom" 
-            mat tmo_details[1,1] = thres
-            mat tmo_details[2,1] = offdP*100
-            mat tmo_details[3,1] = offdPnocl*100
-            mat tmo_details[4,1] = D
-            mat tmo_details[5,1] = df
+            mat tmo_details[1,1] = scalar(thres)
+            mat tmo_details[2,1] = scalar(offdP)*100
+            mat tmo_details[3,1] = scalar(offdPnocl)*100
+            mat tmo_details[4,1] = scalar(D)
+            mat tmo_details[5,1] = scalar(df)
             
-            matrix b = beta
-            matrix V = tmo_se^2
+            matrix b = scalar(beta)
+            matrix V = scalar(tmo_se)^2
 
             matrix colnames b = `x'
             matrix colnames V = `x'
             matrix rownames V = `x'
             
-            local df = df_r
+            local df = scalar(df_r)
             ereturn post b V, dof(`df') obs(`nobs') esample(`touse') depname(`depvar')
 
             ereturn scalar r2 = `r2'
@@ -956,22 +991,22 @@ program define tmo, eclass
 
             //ereturn display, level(`level')
             
-            ereturn scalar beta = beta
-            ereturn scalar orig_se = se
-            ereturn scalar tmo_se = tmo_se
-            ereturn scalar lb = lb
-            ereturn scalar ub = ub
-            ereturn scalar threshold = thres
-            ereturn scalar pct_ge_thres = offdP*100
-            ereturn scalar pct_ge_thres_nocl = offdPnocl*100
-            ereturn scalar T = T
-            ereturn scalar N_loc = N
-            ereturn scalar N_clust = N_clust
-            ereturn scalar N_outcomes = D
-            ereturn scalar N = N_obs
-            ereturn scalar dof = df
-            ereturn scalar finite_sample_dof = dof_adj
-            ereturn scalar df_r = df_r
+            ereturn scalar beta = scalar(beta)
+            ereturn scalar orig_se = scalar(se)
+            ereturn scalar tmo_se = scalar(tmo_se)
+            ereturn scalar lb = scalar(lb)
+            ereturn scalar ub = scalar(ub)
+            ereturn scalar threshold = scalar(thres)
+            ereturn scalar pct_ge_thres = scalar(offdP)*100
+            ereturn scalar pct_ge_thres_nocl = scalar(offdPnocl)*100
+            ereturn scalar T = scalar(T)
+            ereturn scalar N_loc = scalar(N)
+            ereturn scalar N_clust = scalar(N_clust)
+            ereturn scalar N_outcomes = scalar(D)
+            ereturn scalar N = scalar(N_obs)
+            ereturn scalar dof = scalar(df)
+            ereturn scalar finite_sample_dof = scalar(dof_adj)
+            ereturn scalar df_r = scalar(df_r)
             ereturn scalar scpc_cv = ${scpc_cv}
 
         if "`saveest'"!="" {
@@ -1262,7 +1297,7 @@ end
 * Function to estimate TMO SE
 cap program drop est_tmo_se
 program define est_tmo_se,
-    syntax, [dist_cutoff(real 0)] [custom_thres(real -9)] [thresholdoff] [`scpc_uncond']
+    syntax, [dist_cutoff(real 0)] [custom_thres(real -9)] [thresholdoff] [kernel(str)] [`scpc_uncond']
 
     if `custom_thres'!=-9 {
         scalar thres = `custom_thres'
@@ -1325,8 +1360,24 @@ program define est_tmo_se,
     scalar dof_adj = se^2/r(sum)
 
     * TMO SE
-    qui sum xxresxx
-    local xxresxx_sum = r(sum)
+    * NB: xxresxx may exist for all pairs (when distthreshold/plotse/savedyad
+    * force a full sandwich) or only for above-threshold/cluster pairs, so the
+    * sum must be conditional in either case
+    if "`kernel'"=="bartlett" & `dist_cutoff'>0 {
+        * Conley combination with pair-level Bartlett weights: TMO-selected
+        * pairs (and own cluster/diagonal) enter with full weight; remaining
+        * pairs enter with weight (1 - dist/cutoff), zero beyond the cutoff.
+        * This mirrors the pair-level SCPC combination (ryyr).
+        tempvar bcontrib
+        qui gen double `bcontrib' = xxresxx * max(1 - dist/`dist_cutoff', 0)
+        qui replace `bcontrib' = xxresxx if ((abs(corr)>=thres) & !missing(corr)) | `orig_cond'
+        qui sum `bcontrib'
+        local xxresxx_sum = r(sum)
+    }
+    else {
+        qui sum xxresxx if ((abs(corr)>=thres) & !missing(corr)) | `keep_cond'
+        local xxresxx_sum = r(sum)
+    }
     if `scpc'==1 {
         qui sum ryyr if (abs(corr)<thres | missing(corr)) & !`keep_cond'
         local ryyr_sum = r(sum)

@@ -3,9 +3,12 @@
 
   Generates ALL example logs (sjlog) and figures used in SJ/paper/spatial.tex
   Outputs:
-    - Example logs  -> $PPR/examples/*.tex.log      (input by spatial.tex)
-    - tmo figures   -> $FIG/_hist.png, $FIG/_qt.pdf (included by spatial.tex)
+    - Example logs  -> SJ/paper/examples  (files ending in .tex.log.tex,
+      input by spatial.tex)
+    - tmo figures   -> SJ/paper/figures/_hist.png and _qt.pdf
   Maps figures (state_clustering, Conley, SCPC, tmo) are made by maps.do
+  NB: never write the sequence slash-star inside comments here -- Stata block
+  comments nest, and an unbalanced open swallows the rest of the file.
 */
 
 vers 16
@@ -29,7 +32,15 @@ global FIG  "$SJ/paper/figures"
 *   $ROOT/src      = release version (no areg/ivregress support)
 *   $ROOT/src/dev  = development version (faster panel/IV; adds areg, ivregress)
 global TMOSRC "$ROOT/src/dev"
+
+* Load scpc FIRST, then tmo: scpc.ado runs -mata mata clear- when it loads,
+* which wipes tmo's mata functions (error r(3499)) if loaded afterwards.
+qui do "$ROOT/scpc_tmo/scpc.ado"
 qui do "$TMOSRC/tmo.ado"
+
+* Run from the paper folder so paths displayed inside the sjlogs are short
+* and machine-independent (e.g. file("figures/"))
+cd "$PPR"
 
 *-------------------------------------------------------------------------------
 *--- (1) County example (OLS): main illustrative example + figures
@@ -40,7 +51,7 @@ local ylist `r(varlist)'
 
 sjlog using "$PPR/examples/countyexample.tex", replace
 tmo, cmd(reg PIN_persincpc_d EDU_college_d i.stfips, r) x(EDU_college_d) ///
-    ylist(`ylist') i(fips) plothist plotq file("$FIG/")
+    ylist(`ylist') i(fips) plothist plotq file("figures/")
 sjlog close, replace
 
 *-------------------------------------------------------------------------------
@@ -119,6 +130,8 @@ rename fips GEOID
 merge 1:1 GEOID using `maps', keep(3) nogen
 // _CX: longitude ; _CY: latitude
 rename (_CY _CX) (s_1 s_2)
+// scpc reads s_* in physical variable order: force s_1 (lat) before s_2
+order s_1 s_2
 reg PIN_persincpc_d EDU_college_d, r
 scpc, latlong
 rename (s_1 s_2) (_CY _CX)

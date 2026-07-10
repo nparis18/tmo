@@ -80,10 +80,11 @@ program define tmo, eclass
     *************************
     
     if "`scpc_cmd'"!="" {
-        // Install edited version of scpc that stores critical values
-        // DC: Let's bundle this with tmo.  
-           // This avoids issues if users have something else located in their 
-        qui net install scpc, from("https://raw.githubusercontent.com/wjnkim/tmo/master/scpc_tmo") replace
+        // Use an already-loaded/local scpc when available; fall back to install.
+        cap which scpc
+        if _rc {
+            qui net install scpc, from("https://raw.githubusercontent.com/wjnkim/tmo/master/scpc_tmo") replace
+        }
 
         preserve
             qui keep if !missing(`longitude') & !missing(`latitude') & `tmo_sample'

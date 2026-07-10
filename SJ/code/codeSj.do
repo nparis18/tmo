@@ -106,37 +106,52 @@ tmo, cmd(ivreg2 life_d (VST_infmort_d = AHRQ_emerdist_d AHRQ_obgyndist_d ///
 sjlog close, replace
 
 *-------------------------------------------------------------------------------
-*--- (5) Combining tmo with other procedures (cluster, Conley/SCPC)
+*--- (5) Combining tmo with other procedures
 *-------------------------------------------------------------------------------
 use "$DAT/county_differences.dta", clear
 qui ds fips stfips PIN_persincpc_d EDU_college_d, not
 local ylist `r(varlist)'
 
-sjlog using "$PPR/examples/alternativeExample.tex", replace
-* (5a) cluster-robust baseline vs tmo with clustering
+sjlog using "$PPR/examples/clusterExample.tex", replace
 reg PIN_persincpc_d EDU_college_d, cluster(stfips)
 tmo, cmd(reg PIN_persincpc_d EDU_college_d, cluster(stfips)) ///
     x(EDU_college_d) ylist(`ylist') i(fips)
+sjlog close, replace
 
-* (5b) tmo combined with SCPC (requires county centroids from maps data)
+* Add county centroids for distance- and SCPC-based examples
 preserve
 use "$SJ/data/maps/cb_2018_us_county_20m.dta", clear
 destring GEOID, replace
+rename GEOID fips
+keep fips _CX _CY
 tempfile maps
 save `maps'
 restore
 
-rename fips GEOID
-merge 1:1 GEOID using `maps', keep(3) nogen
+merge 1:1 fips using `maps', keep(3) nogen
+qui ds fips stfips PIN_persincpc_d EDU_college_d _CX _CY, not
+local ylist `r(varlist)'
+
+sjlog using "$PPR/examples/conleyExample.tex", replace
+tmo, cmd(reg PIN_persincpc_d EDU_college_d, r) ///
+    x(EDU_college_d) ylist(`ylist') i(fips) lat(_CY) lon(_CX) ///
+    distthreshold(100) miles
+tmo, cmd(reg PIN_persincpc_d EDU_college_d, r) ///
+    x(EDU_college_d) ylist(`ylist') i(fips) lat(_CY) lon(_CX) ///
+    distthreshold(100) miles distkernel(bartlett)
+sjlog close, replace
+
 // _CX: longitude ; _CY: latitude
 rename (_CY _CX) (s_1 s_2)
 // scpc reads s_* in physical variable order: force s_1 (lat) before s_2
 order s_1 s_2
+
+sjlog using "$PPR/examples/scpcExample.tex", replace
 reg PIN_persincpc_d EDU_college_d, r
 scpc, latlong
 rename (s_1 s_2) (_CY _CX)
 
 tmo, cmd(regress PIN_persincpc_d EDU_college_d, r) ///
-    x(EDU_college_d) ylist(`ylist') i(GEOID) lat(_CY) lon(_CX) ///
+    x(EDU_college_d) ylist(`ylist') i(fips) lat(_CY) lon(_CX) ///
     scpc_cmd(reg PIN_persincpc_d EDU_college_d, r)
 sjlog close, replace

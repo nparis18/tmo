@@ -1,0 +1,59 @@
+. reg PIN_persincpc_d EDU_college_d, r
+{\smallskip}
+Linear regression                               Number of obs     =      3,060
+                                                F(1, 3058)        =     168.81
+                                                Prob > F          =     0.0000
+                                                R-squared         =     0.0708
+                                                Root MSE          =     .16767
+{\smallskip}
+\HLI{13}{\TOPT}\HLI{64}
+             {\VBAR}               Robust
+PIN_persin{\tytilde}d {\VBAR} Coefficient  std. err.      t    P>|t|     [95\% conf. interval]
+\HLI{13}{\PLUS}\HLI{64}
+EDU_colleg{\tytilde}d {\VBAR}   .2299788   .0177005    12.99   0.000     .1952727    .2646848
+       _cons {\VBAR}   1.934663   .0089404   216.40   0.000     1.917133    1.952192
+\HLI{13}{\BOTT}\HLI{64}
+{\smallskip}
+. scpc, latlong
+found 3060 observations / clusters and 2-dimensional locations in s_*
+Computing distances on surface of sphere treating s_1 as latitude and s_2 as lo
+> ngitude
+SCPC optimal q = 6 for maximal average pairwise correlation = 0.030
+{\smallskip}
+SCPC Inference for first 2 coefficients
+{\smallskip}
+               {\VBAR}      Coef     Std_Err     t      P>|t|    95\% Conf 
+  \HLI{13}{\PLUS}\HLI{52}
+  EDU_colleg{\tytilde}d {\VBAR}  .2299788    .0253915    9.06    0.000    .1625168 
+         _cons {\VBAR}  1.934663    .0335045   57.74    0.000    1.843191 
+{\smallskip}
+               {\VBAR}  Interval  
+  \HLI{13}{\PLUS}\HLI{12}
+  EDU_colleg{\tytilde}d {\VBAR}  .2974407  
+         _cons {\VBAR}  2.026134  
+{\smallskip}
+. rename (s_1 s_2) (_CY _CX)
+{\smallskip}
+. 
+. tmo, cmd(regress PIN_persincpc_d EDU_college_d, r) ///
+>     x(EDU_college_d) ylist(`ylist') i(fips) lat(_CY) lon(_CX) ///
+>     scpc_cmd(reg PIN_persincpc_d EDU_college_d, r)
+{\smallskip}
+Linear Regression with TMO                              Number of obs =  3,060
+                                                        R-squared     = 0.0705
+                                                        Adj R-squared = 0.0705
+                                                        Root MSE      = 0.1677
+{\smallskip}
+\HLI{13}{\TOPT}\HLI{64}
+PIN_persin{\tytilde}d {\VBAR} Coefficient  Std. err.      t    P>|t|     [95\% conf. interval]
+\HLI{13}{\PLUS}\HLI{64}
+EDU_colleg{\tytilde}d {\VBAR}   .2299788   .0287255     8.01   0.000     .1736556    .2863019
+\HLI{13}{\BOTT}\HLI{64}
+\HLI{79}
+                                                                               
+                                                   Optimal threshold      0.433
+                                            \% of off-diag in SE est.      0.667
+                              \% >= threshold (excl. clusters/Conley)      0.667
+                                                          \# outcomes     90.000
+                                                  Degrees of freedom     45.192
+\HLI{79}

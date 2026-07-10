@@ -100,22 +100,19 @@
 
 \clearpage
 \section{Introduction}
-Spatial dependence is a common feature of data in the social sciences.  Interactions between individuals in their neighbourhoods, cities, states or other social networks typically imply that individuals cannot be viewed as independent observations in space. And even absent direct interactions between individuals, shared underlying shocks typically occur in areas which are linked across potentially quite broad areas of space, and potentially in quite a complex fashion.  [INCLUDE EXAMPLES]
+Spatial dependence is a common feature of data in the social sciences.  Interactions between individuals in their neighbourhoods, cities, states or other social networks typically imply that individuals cannot be viewed as independent observations in space. And even absent direct interactions between individuals, shared underlying shocks typically occur in areas which are linked across potentially quite broad areas of space, and potentially in quite a complex fashion.  Productivity shocks in one region propagate to others through trade and labour-market linkages, policies adopted in one jurisdiction shape both policy adoption and outcomes elsewhere, and common shocks---weather events, commodity price movements, health crises---strike collections of locations that need not be contiguous.  Importantly, the locations which co-move need not be near neighbours: two distant, but economically similar, agricultural counties may respond to a commodity price shock far more similarly than two adjacent counties, one urban and one rural.
 
 Such spatial dependence must be accounted for if one wishes to conduct inference on parameters estimated in econometric models.  Variance-covariance estimators in commonly estimated econometric models such as ordinary least squares (OLS) and two stage least squares (2SLS) typically start from the assumption of independence, but must be relaxed to account for more realistic interactions among observations across space. If such adjustments are not made, standard errors will be mis-estimated, generally resulting in standard errors which are too small, and confidence intervals which are too narrow.
 
 In this paper we lay out considerations for conducting inference in models where spatial dependence among observations is suspected.  We discuss a number of existing common procedures and their limitations, and lay out a new procedure for inference with spatial correlation variance which leverages multiple outcome measures.  This procedure, referred to as Thresholding Multiple Outcomes (TMO) is described in \citet{Dellavignaetal2025} (and in this paper), and is accompanied by a Stata routine {\tt tmo} designed for a range of commonly encountered estimation methods in Stata which we document here.
 
-Tools to relax the variance-covariance matrix in \textit{in certain ways} are default in many computational implementations in Stata.  For example, essentially all Stata estimators incorporate heteroscedasticity-robust estimators by default.  And similarly, cluster robust variance allows for \textit{limited} spatial dependence.  This ... \citet{Moulton1986,Moulton1990}.
+Tools to relax the variance-covariance matrix \textit{in certain ways} are default in many computational implementations in Stata.  For example, essentially all Stata estimators incorporate heteroscedasticity-robust variance estimators.  Similarly, cluster-robust variance estimation allows for \textit{limited} spatial dependence: observations may correlate arbitrarily within a designated group---a state, say---but are assumed independent across groups.  The consequences of ignoring such intra-group correlation have long been understood \citep{Moulton1986,Moulton1990}, and clustering is now routine empirical practice.
 
-However, this assumes a very specific form of dependence.  Additional forms of dependence can be explicitly based on distance or `economic distance'. \citet{Conley1999}
-\citet{MullerWatson2022}
-\citet{MullerWatson2022b}
+However, clustering assumes a very specific form of dependence, in which correlation stops abruptly at the boundary of the cluster.  A second family of procedures instead models dependence explicitly as a function of distance, either geographic or `economic'.  \citet{Conley1999} proposes a kernel-based estimator in which the covariance between two locations is down-weighted as the distance between them grows, reaching zero at a chosen cutoff.  More recently, \citet{MullerWatson2022,MullerWatson2022b} propose Spatial Correlation Principal Components (SCPC), which conducts inference using a small number of low-frequency principal components derived from a worst-case spatial correlation model, offering improved size control when observations agglomerate in space.
 
-It is reasonable, however, to ask what dependence looks like in practice.  This leads to a new way to estimate spatial dependence:
-\citet{Dellavignaetal2025}.  Note that this considers inference on a parameter of interest.
+Both families, however, impose \textit{a priori} that dependence is organised by geography: either delimited by borders, or declining in distance.  It is reasonable to ask what dependence looks like in practice.  \citet{Dellavignaetal2025} propose to answer this question empirically: when a researcher observes many outcomes for the same units---as is very often the case---those auxiliary outcomes can be used to \textit{estimate} which pairs of locations are correlated, rather than assuming where correlation lies.  Their procedure, Thresholding Multiple Outcomes (TMO), then conducts inference on the parameter of interest allowing for dependence among precisely those pairs.
 
-To see what this looks like, consider a representative county.  Explain Figure \ref{fig:illustration}.
+To see how these approaches differ, consider a representative county: Tulsa, Oklahoma.  Figure \ref{fig:illustration} displays, for each of the four procedures discussed above, which other counties enter the variance calculation for a regression using county-level data, and with what weight.  Clustering by state (panel a) admits arbitrary correlation between Tulsa and the rest of Oklahoma, and nothing else.  The Conley approach (panel b) weights counties by a declining function of their distance to Tulsa, reaching zero at 300 miles: dependence is assumed strongest nearby, and absent far away.  SCPC (panel c) is displayed through its implicit pair-level kernel: because inference is based on a handful of smooth, low-frequency spatial components, \textit{every} county in the sample receives some weight, largest in a broad region around Tulsa and varying smoothly over the whole map---there is no threshold and no cutoff.  TMO (panel d) is the mirror image: using 90 auxiliary county-level outcomes, it identifies the small set of counties whose outcomes systematically co-move with Tulsa's (about 0.5\% of all pairs sample-wide), and allows arbitrary correlation with those counties only---wherever they happen to be on the map, including far beyond any distance cutoff.
 
 \begin{figure}[htpb!]
     \centering
@@ -146,9 +143,9 @@ To see what this looks like, consider a representative county.  Explain Figure \
     \end{subfigure}
   \end{figure}
 
-In this paper we ... Primer on estimating standard errors with spatial dependence in Stata.  Introduce TMO.  Discuss a number of key outcomes in US case.  
+In this paper we provide a primer on estimating standard errors under spatial dependence in Stata, introduce the TMO procedure of \citet{Dellavignaetal2025} and its implementation in the {\tt tmo} command, and work through a series of examples based on a rich collection of U.S.\ county-level outcomes.  A distinguishing feature of the command is that TMO need not displace existing practice: it can \textit{augment} clustered, distance-based, or SCPC inference, adding to the variance calculation those pairs of locations whose auxiliary outcomes reveal dependence that the baseline procedure would miss.  We document these combinations, alongside cross-sectional, instrumental variables, and panel implementations.
 
-Other spatial tools in Stata include...
+A number of related tools exist for spatial inference in Stata, including implementations of Conley standard errors, the {\tt scpc} command of M\"uller and Watson, and the {\tt spur} suite of \citet{Beckeretal2026} for diagnosing spatial unit roots.  The {\tt tmo} command complements these by providing inference based on estimated, rather than assumed, patterns of cross-location dependence.
 
 In what remains of this paper, we begin by describing methods in Section \ref{scn:methods}, first discussing proposals to deal with spatial dependence, before focusing on TMO more generally.  We discuss a Stata command to implement TMO in Section \ref{scn:command}, before documenting a number of examples of the use of this command---{\tt tmo}---in Section \ref{scn:examples}.  Section \ref{scn:discussion} lays out key points of relevance for practitioners and concludes.
 
@@ -286,12 +283,18 @@ At the beginning of Section \ref{scn:examples} we will examine an empirical exam
 Algorithm \ref{alg:TMP} in an Appendix to this article.
 
 \subsection{Alternative Estimators}
-While the above treatment begins with a bivariate linear regression model in \eqref{eqn:linmodel}, the above procedures can quite simply be ...
-
+While the above treatment begins with a bivariate linear regression model in \eqref{eqn:linmodel}, the procedures extend directly to the estimation environments most commonly encountered in practice.  With additional covariates or fixed effects, the residualised treatment $\tilde{W}_i$---the residual from regressing $W_i$ on all other regressors---takes the place of $W_i$ in the sandwich formula, by the Frisch--Waugh--Lovell theorem; the {\tt tmo} command constructs $\tilde{W}_i$ internally from the command supplied in {\tt cmd()}.  With instrumental variables, the same logic applies to the first-stage projection: the command builds the appropriate 2SLS residualisation, so that the reported coefficient is the second-stage estimate while the variance is adjusted using TMO.  In panel settings, residuals for each location are stacked across time periods, cross-location correlations are computed using all periods jointly, and the sandwich accumulates contributions over pairs of locations and pairs of periods.  Formal treatments of each extension are provided in \citet[Appendix B.3]{Dellavignaetal2025}.  In terms of implementation, {\tt tmo} currently supports {\tt regress}, {\tt areg}, {\tt reghdfe}, {\tt ivregress}, {\tt ivreg2} and {\tt ivreghdfe}, as documented in Section \ref{scn:command}.
 
 \subsection{Combining TMO with Distance-Based Procedures}
+\label{sscn:combining}
+TMO and the procedures reviewed above are not mutually exclusive.  Each of the estimators discussed in this section can be written as a sandwich estimator in which the contribution of a pair of locations $(i,i^\prime)$ enters with some weight $w_{ii^\prime}$.  Clustering sets $w_{ii^\prime}=1$ within clusters and $0$ elsewhere; Conley-type estimators set $w_{ii^\prime}=K(d_{ii^\prime}/b)$, a kernel in distance; and SCPC implies a dense kernel $w_{ii^\prime}=P_{ii^\prime}$ derived from its low-frequency principal components, under which \textit{every} pair receives some (typically small) weight.
 
-
+This common structure makes combination natural.  The combined estimator implemented in {\tt tmo} retains the raw covariance term (weight 1) for every pair selected by the TMO threshold---and for every pair included by the baseline procedure, in the clustering and uniform-distance cases---while remaining pairs enter with the baseline weight:
+\begin{equation}
+\label{eqn:combined}
+\widehat{\mathbb{V}}_{combined} \propto \sum_{(i,i^\prime):\, |\widehat\rho_{ii^\prime}|\geq\widehat\delta} \widehat\varepsilon_i\widehat\varepsilon_{i^\prime}\tilde{W}_i\tilde{W}_{i^\prime} \;+\; \sum_{\text{remaining pairs}} w_{ii^\prime}\, \widehat\varepsilon_i\widehat\varepsilon_{i^\prime}\tilde{W}_i\tilde{W}_{i^\prime},
+\end{equation}
+where the first summation reflects pairs flagged by TMO (as well as own-cluster or within-cutoff pairs, where relevant), and $w_{ii^\prime}$ in the second summation is the baseline weight: $\mathbbm{1}\{d_{ii^\prime}\leq b\}$ for a uniform distance kernel, $\max(1-d_{ii^\prime}/b,\,0)$ for a Bartlett kernel \citep[the spatial analogue of][]{neweywest87}, or the SCPC kernel weight $P_{ii^\prime}$.  The intuition for such combinations is that the two sources of information are complementary: distance-based procedures are well suited to diffuse, geographically organised dependence, while TMO captures strong dependencies between particular pairs of locations---which need not be geographically close---revealed by the auxiliary outcomes.  Section \ref{scn:examples} illustrates each combination, which is requested in {\tt tmo} through the {\tt cmd()} (clustering), {\tt distthreshold()}/{\tt distkernel()} (distance), and {\tt scpc\_cmd()} (SCPC) options.
 
  \clearpage
 \section{The {\tt tmo} command}
@@ -390,17 +393,14 @@ The matrices {\tt e(b)} and {\tt e(V)} contain the point estimate and TMO-adjust
 \section{Examples}
 \label{scn:examples}
 \subsection{An Illustrative Example: OLS and US counties}
-It is illustrative to view the principles of TMO in a specific empirical setting.  To do so we will consider an example from \citet{Dellavignaetal2025} in which data on county-level outcomes in the USA have been collated.  In particular, consider the model where yyyy is regression on xxxxx, along with state fixed effects.  Below we load...   
-
-
-%Let's explain what we're doing here (eg walk readers through the variables). Point to these data as bundled with the routine.  Show graph with coverage by state over time for an appendix (https://www.jstatsoft.org/article/view/v107i07/4504)?
+It is illustrative to view the principles of TMO in a specific empirical setting.  To do so we will consider an example from \citet{Dellavignaetal2025} in which a rich collection of county-level outcomes for the United States has been collated, principally from U.S.\ Census sources.  The dataset ({\tt county\_differences.dta}, bundled with the command's repository) contains, for each of roughly 3,100 counties, long-differences of over 90 standardised economic and social outcomes: income, employment by sector, education, health, and demographic measures, among others.  Each variable is expressed as the change over 1980--2009 and normalised to mean zero and unit variance.  We estimate the effect of the change in the share of college graduates ({\tt EDU\_college\_d}) on the change in per-capita personal income ({\tt PIN\_persincpc\_d}), including state fixed effects.  The county FIPS code ({\tt fips}) identifies locations, and every other outcome in the dataset serves as an auxiliary outcome in {\tt ylist()}:
 
   \begin{stlog}
     \input{examples/countyexample.tex.log}
   \end{stlog}
 
 
-The upper panel reports the conventional OLS results. The lower block summarizes the TMO adjustment. The \textit{Optimal threshold} $\hat\delta$ is a data–driven cutoff for the absolute Fisher–$z$ correlations across locations; pairs with $|\hat\rho_{i,i'}|\ge\hat\delta$ are treated as correlated when constructing $\widehat{\Sigma}^{(0)}(\hat\delta)$. From all the pairs 49\% reports the share of off–diagonal entries retained by this rule, and thus the extent of cross–location dependence incorporated in the variance. When TMO augments clustering or Conley, that records has the additional pairs contributed by TMO beyond the baseline method. In this case we used 90 auxiliary outcomes used to learn the correlation structure, finally the degrees of freedom reports the width of the normal reference used to set $\hat\delta$ (estimated from the interquartile range of Fisher–$z$ correlations).
+The upper panel reports the conventional OLS results. The lower block summarizes the TMO adjustment. The \textit{Optimal threshold} $\hat\delta$ is a data–driven cutoff for the absolute correlations across locations; pairs with $|\hat\rho_{i,i'}|\ge\hat\delta$ are treated as correlated when constructing $\widehat{\Sigma}^{(0)}(\hat\delta)$. The \textit{\% of off-diag in SE est.} row reports the share of off–diagonal entries retained by this rule---here roughly 0.5\% of all county pairs, underscoring the sparsity of the selection---and thus the extent of cross–location dependence incorporated in the variance. When TMO augments clustering or Conley, this row also records the additional pairs contributed by the baseline method. In this case 90 auxiliary outcomes were used to learn the correlation structure; finally, the degrees of freedom reports the width of the normal reference used to set $\hat\delta$ (estimated from the interquartile range of Fisher–$z$ correlations).
 
 The figures document the choice of $\hat\delta$. Figure~\ref{fisherCorr} shows the empirical distribution of Fisher–$z$ correlations across locations together with the fitted $N(0,\hat v)$ reference; the dashed vertical lines at $\pm\hat\delta$ indicate which pairs populate the off–diagonal of $\widehat{\Sigma}^{(0)}(\hat\delta)$. Figure~\ref{opThreshol} then plots the threshold objective $\hat Q_{n,d}(\delta)$; the dashed line marks its maximizer at $\hat\delta$ (larger $\delta$ yields a more conservative selection of pairs). The reported standard error is computed as $(W^\top W)^{-1}\!\bigl(W^\top \widehat{\Sigma}^{(0)}(\hat\delta) W\bigr)(W^\top W)^{-1}$.
   \begin{figure}[H]
@@ -435,7 +435,9 @@ variance is to be adjusted, and \texttt{ylist()} supplies the auxiliary outcomes
 \end{stlog}
 The output mirrors the cross sectional case: the reported coefficient equals the
 second–stage IV estimate from the underlying command, while the standard error is
-TMO–adjusted; the lower block reports the optimal threshold,  
+TMO–adjusted; the lower block reports the optimal threshold, the share of pairs
+retained, and the remaining diagnostic quantities, all with the same
+interpretation as before.
 \paragraph{Panel Data}
 Panel–ready data are available as \href{https://raw.githubusercontent.com/wjnkim/tmo/master/example/county_panel.dta}{\texttt{county\_panel.dta}} in the project repository on GitHub.
 \smallskip
@@ -447,7 +449,7 @@ In panel settings, \texttt{tmo} incorporates the time dimension through the unit
 \end{stlog}
 The output is analogous to the cross sectional case. The effective sample size increases because the data expand over time, and the optimal threshold may differ since correlations are constructed using the panel information. All reported fields keep the same interpretation as in the cross sectional setting.
 \paragraph{Other routines}
-Show that original estimator can be implemented by reg, reghdfe, areg.  Perhaps discuss time?  
+The regression of interest may be specified with any of the supported estimation commands, and equivalent specifications yield identical results regardless of the wrapper used.  The log below estimates the same state-fixed-effects model three ways---{\tt regress} with factor-variable notation, {\tt reghdfe} with {\tt absorb()}, and {\tt areg}---and reports timings.  The three TMO standard errors coincide; run-times differ only through the speed of the underlying estimation command, since the auxiliary-outcome regressions are re-estimated with the same wrapper.
 
 \begin{stlog}
 \input{examples/cmdexamples.tex.log}
@@ -455,18 +457,96 @@ Show that original estimator can be implemented by reg, reghdfe, areg.  Perhaps 
 
 \subsection{Alternative settings}
 \subsubsection{Combining {\tt tmo} with other spatial dependence procedures}
-% TODO: narrative -- show model with just clustered OLS; then just Conley or
-% Muller and Watson; then just tmo (replicates original); then cluster+tmo and
-% tmo+Muller-Watson. Consider a summary table with estout.
+The {\tt tmo} command can be combined with existing approaches to spatial
+inference.  This is useful when the researcher wants to preserve a conventional
+restriction on the covariance matrix---for example arbitrary dependence within
+states, within a distance cutoff, or through the SCPC kernel---while allowing TMO
+to add further pairs whose auxiliary outcomes suggest residual dependence.
+Operationally, the original procedure defines a baseline set of pairs that enter
+the variance estimator.  TMO then adds pairs with
+$|\widehat\rho_{ii^\prime}|\geq \widehat\delta$, except where the baseline
+procedure already includes them.
+
+\paragraph{TMO with clustered standard errors}
+The simplest combination starts from the usual cluster-robust estimator.  In the
+example below, the original regression clusters by state, and {\tt tmo} is then
+called with the same clustered regression in {\tt cmd()}.  The command preserves
+the within-state covariance terms and uses the auxiliary outcomes to decide
+which cross-state pairs should also enter the variance.
+
 \begin{stlog}
-\input{examples/alternativeExample.tex.log}
+\input{examples/clusterExample.tex.log}
 \end{stlog}
 
-\subsubsection{Cross-country data and the World Bank Databank}
-Show wbopendata with cross-country.  Democracy and growth??
+\paragraph{TMO with distance-based adjustments}
+Distance-based adjustments are requested by supplying county centroids through
+{\tt latitude()} and {\tt longitude()}, together with a distance cutoff through
+{\tt distthreshold()}.  The default kernel is uniform, so every pair inside the
+cutoff enters with full weight.  The development version also provides
+{\tt distkernel(bartlett)}, which assigns a linearly declining weight to
+non-TMO-selected pairs inside the cutoff while retaining TMO-selected pairs with
+full weight.
+
+\begin{stlog}
+\input{examples/conleyExample.tex.log}
+\end{stlog}
+
+\paragraph{TMO with SCPC}
+The SCPC combination is requested with {\tt scpc\_cmd()}.  In this case, TMO
+first runs the SCPC regression using latitude and longitude ordered as
+{\tt s\_1} and {\tt s\_2}, respectively.  Pairs selected by TMO enter with the
+raw residual covariance, while all remaining pairs enter through the implicit
+SCPC kernel weight.  This gives a direct implementation of the combined
+TMO--SCPC estimator in the same syntax used for the other examples.
+
+\begin{stlog}
+\input{examples/scpcExample.tex.log}
+\end{stlog}
+
+\begin{figure}[H]
+  \caption{Combining TMO with existing spatial-dependence adjustments}
+  \label{fig:combined}
+  \begin{subfigure}{0.45\textwidth}
+      \includegraphics[width=\linewidth]{figures/state_clustering.pdf}
+    \caption{State clustering}
+    \label{fig:combined_cluster}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}{0.45\textwidth}
+      \includegraphics[width=\linewidth]{figures/tmo_conley.pdf}
+    \caption{TMO + Conley}
+    \label{fig:combined_conley}
+  \end{subfigure}
+
+  \begin{subfigure}{0.45\textwidth}
+      \includegraphics[width=\linewidth]{figures/tmo_conley_bartlett.pdf}
+    \caption{TMO + Bartlett distance kernel}
+    \label{fig:combined_bartlett}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}{0.45\textwidth}
+      \includegraphics[width=\linewidth]{figures/tmo_scpc.pdf}
+    \caption{TMO + SCPC}
+    \label{fig:combined_scpc}
+  \end{subfigure}
+\end{figure}
+
+Figure \ref{fig:combined} visualises each combination for the focal county of Figure \ref{fig:illustration}, with every layer derived from the pair-level output of the corresponding {\tt tmo} run.  Two features deserve emphasis, since the combined estimators inherit very different structures from their two components.  First, the TMO contribution is deliberately \textit{sparse}: only the small set of counties whose auxiliary outcomes systematically co-move with the focal county is selected (shown in red in panels c and d), and these counties may lie anywhere on the map.  Second, the baseline contributions differ in their density.  The Conley disk (panel b) and Bartlett kernel (panel c) are \textit{local and bounded}: weights are confined within the distance cutoff, and are zero everywhere else---so that the map is mostly unshaded.  The SCPC kernel (panel d, background), by contrast, is \textit{dense and global}: because SCPC conducts inference through a handful of smooth low-frequency spatial components, every pair of counties receives some weight, without any threshold or cutoff, and the entire map is therefore shaded.  This is not an artefact of the figure but a faithful depiction of the estimator: in the combined TMO--SCPC variance, the red counties contribute their raw residual covariance, while every remaining county contributes through the smoothly varying kernel weight shown in the background.  The comparison also clarifies the division of labour in equation \eqref{eqn:combined}: the baseline captures diffuse, geographically organised dependence---sharply bounded for Conley, smooth and global for SCPC---while TMO adds the specific, potentially distant, pairs that geography alone would miss.
+
+\subsubsection{Cross-country data: democracy and growth}
+The procedures discussed in this paper are in no way specific to U.S.\ counties: any setting with a cross-section (or panel) of locations and a collection of auxiliary outcomes is amenable to TMO, including cross-country data.  Indeed, \citet{Dellavignaetal2025} apply the procedure to the country-level panel of \citet{Acemogluetal2019}, who estimate the effect of democratisation on GDP per capita across 175 countries, finding that the TMO adjustment increases the reported standard error by around 6\%\ when combined with the original clustering.  In this subsection we will replicate and extend this exercise using the {\tt tmo} command, using the collection of country-level covariates available in the replication materials as auxiliary outcomes.
+% TODO [NP/DC]: on hold until we obtain the Acemoglu et al. (2019) replication
+% package; then: (i) reproduce Table 2 Column 3 of the original paper, (ii) apply
+% tmo augmenting country-level clustering, (iii) compare with Conley/SCPC
+% combinations as in the county example.
 
 \section{Discussion and Conclusion}
 \label{scn:discussion}
+In this article we have reviewed the main procedures available to Stata users for conducting inference in the presence of spatial dependence, and introduced the {\tt tmo} command, which implements the Thresholding Multiple Outcomes procedure of \citet{Dellavignaetal2025}.  Rather than positing where spatial correlation lies---inside administrative borders, or within a chosen distance---TMO estimates the location of dependence from auxiliary outcomes observed for the same units, and then permits arbitrary correlation among the (typically very small) set of location pairs whose outcomes systematically co-move.
+
+Several practical lessons emerge from the examples documented here.  First, the procedure is undemanding in terms of syntax: a researcher who can estimate their model with {\tt regress}, {\tt areg}, {\tt reghdfe}, {\tt ivregress}, {\tt ivreg2} or {\tt ivreghdfe} can obtain TMO-adjusted standard errors by wrapping the same command line in {\tt cmd()}.  Second, the quality of the adjustment rests on the auxiliary outcomes: the proportionality assumption requires that the available outcomes span the relevant dimensions of cross-location dependence, and the estimated degrees of freedom reported by the command provides a useful diagnostic of how informative the collection is.  Researchers should favour rich collections of outcomes measured for all units.  Third, TMO composes naturally with existing practice: it can augment clustered, distance-based, and SCPC inference, adding precisely those pairs of locations that the baseline procedure's geography would overlook.  In the county-level application considered here, these combinations behave as theory suggests: distance-based baselines capture local dependence, SCPC captures smooth global dependence, and TMO contributes strong, specific dependencies among---possibly distant---pairs.
+
+Finally, we note two caveats.  TMO is designed for settings where dependence is \textit{sparse}: most pairs of locations are (approximately) uncorrelated, with meaningful dependence concentrated in relatively few pairs.  In data exhibiting very strong, pervasive spatial dependence---of the form studied by M\"uller and Watson's recent work on spatial unit roots---sparsity fails by construction, and researchers should first diagnose and remove such trends before applying TMO or, indeed, most other spatial corrections.  And as with all procedures discussed here, the number of auxiliary outcomes and locations drives computational cost; the command is written to remain practical at the scale of U.S.\ counties on a standard laptop.
 
 \clearpage
 

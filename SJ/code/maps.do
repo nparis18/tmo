@@ -26,7 +26,7 @@ graph set window fontface "Arial Narrow"
 * which would wipe tmo's mata functions (corr_resid etc., error r(3499)) if
 * scpc were auto-loaded later, e.g. inside tmo's scpc_cmd() option.
 qui do "$ROOT/scpc_tmo/scpc.ado"
-qui do "$ADO/tmo.ado"
+qui do "$ADO/dev/tmo.ado"
 
 local makeshape 0
 
@@ -111,148 +111,10 @@ geoplot (area counties conley_w if `mainland', lwidth(none) lcolor(white)
 graph export "$OUT/Conley.pdf", replace
 
 *-------------------------------------------------------------------------------
-*--- (4) Make SCPC map
-*-------------------------------------------------------------------------------
-preserve
-use "$EXA/county_differences.dta", clear
-rename fips GEOID
-
-tempfile county_differences
-save `county_differences'
-restore
-
-destring GEOID, replace
-merge 1:1 GEOID using `county_differences', keep(3) nogen
-* scpc latlong convention: s_1 = latitude, s_2 = longitude
-* (spshape2dta centroids: _CX = longitude, _CY = latitude)
-gen s_1 = _CY
-gen s_2 = _CX
-
-qui reg PIN_persincpc_d EDU_college_d, r
-gen byte insample = e(sample)
-scpc, latlong
-
-* Wfin rows follow the estimation sample only; restrict accordingly
-mata:
-    W2 = Wfin[, 2..cols(Wfin)] // drop constant (col 1)
-    P  = W2*W2'                // implicit SCPC pair-weight kernel
-
-    sel = selectindex(st_data(., "insample"))
-    id  = st_data(., "_ID", "insample")
-    iFocal = selectindex(id:==`focal_id')[1]
-
-    w = abs(P[iFocal, .])'
-    st_addvar("double", "scpc_w")
-    st_store(sel, "scpc_w", w)
-end
-xtile scpc_bin = scpc_w, nq(6)
-
-#delimit ;
-geoplot (area counties scpc_bin if `mainland', lwidth(none) lcolor(white) levels(6)
-        label(1 "1" 2 "2" 3 "3" 4 "4" 5 "5" 6 "6") missing(label("No weight")))
-        (label counties NAME if `focal_cond', color(black) size(vsmall))
-        (line states if `mainland', lwidth(vthin))
-        , project legend(pos(5));
-#delimit cr
-graph export "$OUT/SCPC.pdf", replace
-
-*-------------------------------------------------------------------------------
-*--- (5) Make TMO map
-*-------------------------------------------------------------------------------
-preserve
-use "$EXA/county_differences.dta", clear
-
-qui ds fips stfips PIN_persincpc_d EDU_college_d, not
-local ylist `r(varlist)'
-gen weight=1
-
-* NB: savedyad requires file(); dyad data saved as $TMP/maps_dyad.dta
-qui tmo, cmd(reg PIN_persincpc_d EDU_college_d [fw = weight]) x(EDU_college_d) ylist(`ylist') i(fips) savedyad file("$TMP/maps")
-scalar thres = e(threshold)
-restore
-
-*--- (5b) Optional: rank counties by number of above-threshold partners
-*    Useful for choosing the focal county of the four maps. Set to 1 to run.
-*    (2026-07: Tulsa=33 pairs; top counties: Winnebago WI=192, Walworth WI=191,
-*     Jefferson WI=188, Wood OH=169 -- Great Lakes manufacturing belt)
-local findfocal 0
-if `findfocal'==1 {
-    preserve
-    use "$TMP/maps_dyad.dta", clear
-    keep if id1!=id2
-    gen byte above = (abs(corr)>=thres) & !missing(corr)
-    * stack so each pair counts for both of its counties
-    expand 2, gen(dup)
-    gen fips = cond(dup==0, id1, id2)
-    collapse (sum) nabove=above, by(fips)
-    gsort -nabove
-    di as result _n "Top 10 counties by number of pairs above the TMO threshold:"
-    li fips nabove in 1/10, noobs clean
-    restore
-}
-
-preserve
-use "$TMP/maps_dyad.dta", clear
-keep if (id2==`focalfips' | id1==`focalfips') & id1!=id2
-gen GEOID = cond(id1==`focalfips', id2, id1)
-keep GEOID corr
-replace corr = abs(corr)
-
-tempfile corr
-save `corr'
-restore
-
-* Merge with counties frame
-frame change counties
-destring GEOID, replace
-merge 1:1 GEOID using `corr', keep(1 3) nogen
-
-* TMO keeps ONLY pairs with |corr| >= threshold: colour those, grey out the rest
-gen byte tmosel = ((corr>=thres) & !missing(corr))
-gen tmo_kept = corr if tmosel
-
-#delimit ;
-geoplot (area counties tmo_kept if `mainland', lwidth(none) lcolor(white)
-        levels(4) missing(label("No weight")))
-        (label counties NAME if `focal_cond', color(black) size(vsmall))
-        (line states if `mainland', lwidth(vthin))
-        , project legend(pos(5));
-#delimit cr
-
-graph export "$OUT/tmo.pdf", replace
-
-*-------------------------------------------------------------------------------
-*--- (6) Combined map: TMO + Conley (uniform kernel, `conleycut' miles)
-*    Pairs entering the variance: Conley disk, TMO pairs beyond it, or both.
-*    (The optimal threshold is unchanged when combining, so thres from (5)
-*     applies; verified 2026-07: same .4329 with and without distthreshold.)
-*-------------------------------------------------------------------------------
-local conleycut 100
-
-gen cat = .
-replace cat = 1 if distance<=`conleycut'
-replace cat = 2 if tmosel==1 & (distance>`conleycut' | missing(distance))
-replace cat = 3 if tmosel==1 & distance<=`conleycut'
-label define catl 1 "Conley (<=`conleycut' mi)" 2 "TMO pair" 3 "Both", replace
-label values cat catl
-
-#delimit ;
-geoplot (area counties cat if `mainland', discrete lwidth(none) lcolor(white)
-        missing(label("No weight")))
-        (label counties NAME if `focal_cond', color(black) size(vsmall))
-        (line states if `mainland', lwidth(vthin))
-        , project legend(pos(5));
-#delimit cr
-
-graph export "$OUT/tmo_conley.pdf", replace
-
-*-------------------------------------------------------------------------------
-*--- (7) Combined map: TMO + SCPC
-*    Built from an ACTUAL combined run (tmo with scpc_cmd + savedyad), so both
-*    layers come from what the estimator does internally: TMO-selected pairs
-*    (|corr| >= threshold) use the raw covariance; every remaining pair enters
-*    through the SCPC kernel weight, saved pair-level in the dyad as Wfin
-*    ( = [W2*W2']_{ll'}/q, cf. RUN SCPC section of tmo.ado).
+*--- (4) One combined TMO+SCPC run feeds maps (4), (5) and (7)
+*    Everything below comes from tmo's OWN internals, saved pair-level in the
+*    dyad: corr (auxiliary-outcome correlations), Wfin (the SCPC kernel that
+*    tmo computes internally when scpc_cmd() is given), and e(threshold).
 *-------------------------------------------------------------------------------
 preserve
 use "$DAT/maps/cb_2018_us_county_20m.dta", clear
@@ -267,7 +129,7 @@ merge 1:1 fips using `cent', keep(3) nogen
 qui ds fips stfips PIN_persincpc_d EDU_college_d _CX _CY, not
 local ylist `r(varlist)'
 
-* scpc_cmd is incompatible with weights, so no [fw=] here
+* scpc_cmd is incompatible with weights; savedyad stores the full dyad
 qui tmo, cmd(reg PIN_persincpc_d EDU_college_d) x(EDU_college_d) ///
     ylist(`ylist') i(fips) lat(_CY) lon(_CX) ///
     scpc_cmd(reg PIN_persincpc_d EDU_college_d, r) ///
@@ -278,15 +140,144 @@ use "$TMP/mapsS_dyad.dta", clear
 keep if (id1==`focalfips' | id2==`focalfips') & id1!=id2
 gen GEOID = cond(id1==`focalfips', id2, id1)
 gen byte tmoselS = (abs(corr)>=thresS) & !missing(corr)
-gen scpc_k = abs(Wfin)
-keep GEOID tmoselS scpc_k
+gen corrS = abs(corr)
+gen aWfin = abs(Wfin)
+keep GEOID tmoselS corrS aWfin
 tempfile combS
 save `combS'
 restore
 
 frame change counties
+destring GEOID, replace
 merge 1:1 GEOID using `combS', keep(1 3) nogen
-xtile scpc_kbin = scpc_k if tmoselS!=1, nq(6)
+
+*--- (4a) SCPC map: tmo's internal SCPC kernel weight |Wfin| for the focal row
+xtile scpc_bin = aWfin, nq(6)
+
+#delimit ;
+geoplot (area counties scpc_bin if `mainland', lwidth(none) lcolor(white) levels(6)
+        label(1 "1" 2 "2" 3 "3" 4 "4" 5 "5" 6 "6") missing(label("No weight")))
+        (label counties NAME if `focal_cond', color(black) size(vsmall))
+        (line states if `mainland', lwidth(vthin))
+        , project legend(pos(5));
+#delimit cr
+graph export "$OUT/SCPC.pdf", replace
+
+*-------------------------------------------------------------------------------
+*--- (5) TMO map: only the pairs the estimator keeps (|corr| >= threshold)
+*-------------------------------------------------------------------------------
+gen tmo_kept = corrS if tmoselS==1
+
+#delimit ;
+geoplot (area counties tmo_kept if `mainland', lwidth(none) lcolor(white)
+        levels(4) missing(label("No weight")))
+        (label counties NAME if `focal_cond', color(black) size(vsmall))
+        (line states if `mainland', lwidth(vthin))
+        , project legend(pos(5));
+#delimit cr
+
+graph export "$OUT/tmo.pdf", replace
+
+*--- (5b) Optional: rank counties by number of above-threshold partners
+*    Useful for choosing the focal county of the maps. Set to 1 to run.
+*    (2026-07: Tulsa=33 pairs; top counties: Winnebago WI=192, Walworth WI=191,
+*     Jefferson WI=188, Wood OH=169 -- Great Lakes manufacturing belt)
+local findfocal 0
+if `findfocal'==1 {
+    preserve
+    use "$TMP/mapsS_dyad.dta", clear
+    keep if id1!=id2
+    gen byte above = (abs(corr)>=thresS) & !missing(corr)
+    * stack so each pair counts for both of its counties
+    expand 2, gen(dup)
+    gen fips = cond(dup==0, id1, id2)
+    collapse (sum) nabove=above, by(fips)
+    gsort -nabove
+    di as result _n "Top 10 counties by number of pairs above the TMO threshold:"
+    li fips nabove in 1/10, noobs clean
+    restore
+}
+
+*-------------------------------------------------------------------------------
+*--- (6) Combined TMO + Conley from an ACTUAL combined run
+*    tmo with distthreshold() computes pairwise distances internally (geodist)
+*    and saves them in the dyad; the SE lets pairs enter either because
+*    |corr| >= threshold (TMO) or because dist <= cutoff (Conley disk).
+*-------------------------------------------------------------------------------
+local conleycut 100
+
+preserve
+use "$DAT/maps/cb_2018_us_county_20m.dta", clear
+destring GEOID, replace
+rename GEOID fips
+keep fips _CX _CY
+tempfile cent2
+save `cent2'
+
+use "$EXA/county_differences.dta", clear
+merge 1:1 fips using `cent2', keep(3) nogen
+qui ds fips stfips PIN_persincpc_d EDU_college_d _CX _CY, not
+local ylist `r(varlist)'
+
+qui tmo, cmd(reg PIN_persincpc_d EDU_college_d) x(EDU_college_d) ///
+    ylist(`ylist') i(fips) lat(_CY) lon(_CX) ///
+    distthreshold(`conleycut') miles ///
+    savedyad file("$TMP/mapsC")
+scalar thresC = e(threshold)
+
+use "$TMP/mapsC_dyad.dta", clear
+keep if (id1==`focalfips' | id2==`focalfips') & id1!=id2
+gen GEOID = cond(id1==`focalfips', id2, id1)
+gen byte tmoselC = (abs(corr)>=thresC) & !missing(corr)
+rename dist distC
+keep GEOID tmoselC distC
+tempfile combC
+save `combC'
+restore
+
+merge 1:1 GEOID using `combC', keep(1 3) nogen
+
+*--- (6a) uniform kernel (what distthreshold() does by default): categorical
+gen cat = .
+replace cat = 1 if distC<=`conleycut'
+replace cat = 2 if tmoselC==1 & (distC>`conleycut' | missing(distC))
+replace cat = 3 if tmoselC==1 & distC<=`conleycut'
+label define catl 1 "Conley (<=`conleycut' mi)" 2 "TMO pair" 3 "Both", replace
+label values cat catl
+
+#delimit ;
+geoplot (area counties cat if `mainland', discrete lwidth(none) lcolor(white)
+        missing(label("No weight")))
+        (label counties NAME if `focal_cond', color(black) size(vsmall))
+        (line states if `mainland', lwidth(vthin))
+        , project legend(pos(5));
+#delimit cr
+
+graph export "$OUT/tmo_conley.pdf", replace
+
+*--- (6b) bartlett kernel (distkernel(bartlett)): non-selected pairs enter
+*    with weight 1 - d/b, TMO pairs with full weight (shown in red)
+* zero-weight pairs (beyond the cutoff) stay missing -> "No weight" grey
+gen bartw = 1 - distC/`conleycut' if tmoselC!=1 & distC<`conleycut'
+
+#delimit ;
+geoplot (area counties bartw if `mainland' & tmoselC!=1, lwidth(none)
+        lcolor(white) levels(6) missing(label("No weight")))
+        (area counties if `mainland' & tmoselC==1, color(red) lwidth(none)
+        label("TMO pair"))
+        (label counties NAME if `focal_cond', color(black) size(vsmall))
+        (line states if `mainland', lwidth(vthin))
+        , project legend(pos(5));
+#delimit cr
+
+graph export "$OUT/tmo_conley_bartlett.pdf", replace
+
+*-------------------------------------------------------------------------------
+*--- (7) Combined TMO + SCPC map (same run as section 4)
+*    TMO-selected pairs enter with their raw covariance (red); every other
+*    pair enters through tmo's internal SCPC kernel weight Wfin (background).
+*-------------------------------------------------------------------------------
+xtile scpc_kbin = aWfin if tmoselS!=1, nq(6)
 
 #delimit ;
 geoplot (area counties scpc_kbin if `mainland' & tmoselS!=1, lwidth(none)

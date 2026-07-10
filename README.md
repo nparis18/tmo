@@ -10,10 +10,12 @@ Dependence"* (DellaVigna, Imbens, Kim, Ritzwoller, Clarke and Parı́s).
 
 ```
 ├── src/                 Stata package (what gets installed)
-│   ├── tmo.ado          Release tmo command
-│   ├── dev/tmo.ado      Development version (also named tmo): faster panel/IV,
-│   │                    adds areg/ivregress. Never load both in one session
-│   │                    (mata function collisions). Select via $TMOSRC in codeSj.do
+│   ├── tmo.ado          Release tmo command (frozen reference version)
+│   ├── dev/tmo.ado      THE development version (program also named tmo):
+│   │                    adds areg/ivregress, distkernel(bartlett), bug fixes,
+│   │                    and a mata fast path (~37% faster cross-section).
+│   │                    This is the one to test with. Never load both versions
+│   │                    in one session (mata collisions). $TMOSRC in codeSj.do
 │   ├── tmo.sthlp        Help file
 │   ├── tmo.pkg          Package file
 │   └── stata.toc        Table of contents for net install

@@ -1,4 +1,8 @@
-*! version 0.9.0b3-dev 2025-09-02 -- development version (program named tmo); do NOT load together with src/tmo.ado in one session (mata name collisions)
+*! version 0.9.1-dev 2026-07 -- THE single development version of tmo (program named tmo).
+*! Includes: areg/ivregress support, distkernel(uniform|bartlett) pair-level Conley combination,
+*! scpc lat/lon physical-order fix, scalar() guards, conditional SE sums, 95% CI fix, and a
+*! cross-section fast path computed entirely in mata (no dyad dataset; ~37% faster).
+*! NEVER load together with src/tmo.ado (release) in one session: mata functions collide.
 
 capture program drop tmo
 program define tmo, eclass
@@ -550,6 +554,7 @@ program define tmo, eclass
     ***************
     *** RUN TMO ***
     ***************
+    local fastpath = 0
     preserve
         if "`load'"=="" { // if dyad data already exists, can load and skip this part (programmer option)
             qui keep if `tmo_sample'
@@ -697,12 +702,30 @@ program define tmo, eclass
             mata: xtilde_widerowvec = J(0,0,.)
             mata: xtilde_widecolvec = J(0,0,.)
 
+            * Fast path: cross-section without plots/files/dist/scpc stays in mata
+            * (threshold search and SE sums computed without materializing the
+            *  N(N+1)/2 dyad as a Stata dataset)
+            local fastpath = 0
+            if "`timevar'"=="" & `distthreshold'==0 & "`scpc_cmd'"=="" & ///
+               "`plotq'`plothist'`plotse'`saveplotseest'`savedyad'`saveest'"=="" & ///
+               "`thresholdoff'"=="" {
+                local fastpath = 1
+            }
+
             if "`timevar'"=="" { // Cross-sectional case
                 * Compute correlation in outcomes
                 //DC: Minor bottleneck here, but not too bad
                 mata: Res = st_data(.,"__tmo_resid*")
 
-                if(`clusterOff') {
+                if `fastpath'==1 {
+                    if(`clusterOff'==0) {
+                        mata: id_cluster = st_data(.,"`clustervars'")
+                    }
+                    clear
+                    mata: CovEpsM = J(0,0,.)
+                    mata: corr_resid_fast(Res, `misslimit', CovEpsM)
+                }
+                else if(`clusterOff') {
                     clear
                     mata: corr_resid(id, Res, Res1, `misslimit', CovEpsVec, xtilde_wgt, id_widerowvec, id_widecolvec, res1_widerowvec, res1_widecolvec, xtilde_widerowvec, xtilde_widecolvec, N)
                 }
@@ -712,6 +735,17 @@ program define tmo, eclass
                     mata: same_cl = J(0,0,.)
                     mata: corr_resid(id, Res, Res1, `misslimit', CovEpsVec, xtilde_wgt, id_widerowvec, id_widecolvec, res1_widerowvec, res1_widecolvec, xtilde_widerowvec, xtilde_widecolvec, N, id_cluster, same_cl)
                 }
+                if `fastpath'==1 {
+                    * === MATA CORE: threshold + SE without the dyad dataset
+                    * and without the six N(N+1)/2 "wide" vectors ===
+                    if(`clusterOff') {
+                        mata: tmo_fast_cs2(CovEpsM, Res1, xtilde_wgt, `threshold')
+                    }
+                    else {
+                        mata: tmo_fast_cs2(CovEpsM, Res1, xtilde_wgt, `threshold', id_cluster)
+                    }
+                }
+                else {
                 mata: st_local("obsN",strofreal(rows(CovEpsVec),"%50.0f"))
                 gen id1=.
                 gen id2=.
@@ -771,6 +805,7 @@ program define tmo, eclass
                 else{
                     mata: sandwich_crosssec(id_widerowvec, id_widecolvec, res1_widerowvec, res1_widecolvec, xtilde_widerowvec, xtilde_widecolvec, CovEpsVec, ResXtildeVec, `swthres', same_cl)
                     local posSW = 4
+                }
                 }
             }
             else { // Panel case
@@ -858,6 +893,7 @@ program define tmo, eclass
                 }
                 sandwich_panel, clusterOff(`clusterOff') nloc(`N') ntime(`T') th(`swthres') noi
             }
+            if `fastpath'==0 {
             * Normalize contribution to variance
             mata: resxtildenorm(ResXtildeVec, xtilde_wgt, `posSW')
 
@@ -917,6 +953,7 @@ program define tmo, eclass
                 local scpcy2
             }
             load_data, nloc(`N') clusterOff(`clusterOff') `distp' `savedyad' `savepath' `scpcw' `scpcy1' `scpcy2' `corr'
+            }
         }
         else {
             if "`filesuffix'"!="" {
@@ -931,6 +968,7 @@ program define tmo, eclass
 
             use "`load'_dyad.dta", clear
         }
+        if `fastpath'==0 {
         * Compute TMO SE
         est_tmo_se, dist_cutoff(`distthreshold') kernel(`distkernel') `thresholdoff'
 
@@ -944,6 +982,7 @@ program define tmo, eclass
         if "`plotse'"!="" {
             tmo_over_thres, `savepath' `saveplotseest' noi dist_cutoff(`distthreshold')
         }   
+        }
     restore
 
         **********************
@@ -1594,4 +1633,228 @@ program define tmo_save,
         save "`filesuffix'_est.dta", replace
     restore
 
+end
+
+* Fast-path core: optimal threshold + TMO SE computed entirely in mata,
+* replicating exactly the dataset-based logic (dfqt-inline + est_tmo_se)
+cap mata: mata drop tmo_fast_cs()
+cap mata: mata drop tmo_sum_pctile()
+mata
+    real scalar tmo_sum_pctile(real colvector xs, real scalar p)
+    // percentile of a SORTED vector, replicating -summarize, detail-:
+    // i = n*p ; integer -> mean of xs[i], xs[i+1] ; else xs[ceil(i)]
+    {
+        real scalar n, ip, fl
+        n  = rows(xs)
+        ip = n*p
+        fl = floor(ip + 1e-9)
+        if (abs(ip - fl) < 1e-9) {
+            return((xs[fl] + xs[min((fl+1, n))])/2)
+        }
+        return(xs[fl + 1])
+    }
+
+    void tmo_fast_cs(real colvector corrv,
+                     real colvector idr,  real colvector idc,
+                     real colvector r1r,  real colvector r1c,
+                     real colvector xtr,  real colvector xtc,
+                     real colvector xtilde_wgt,
+                     real scalar customthres,
+                     | real colvector same_cl)
+    {
+        real colvector offd, fz, fzabs, q, xx, keep, origc, selv
+        real scalar M, sd, p25, p75, fthres, thres, qmax, dofadj, tmose
+        real scalar offdN, offdNnocl, selN, selNnocl, df
+
+        // usable off-diagonal pairs (matches: !missing(corr) & id1!=id2 & abs(corr)!=1)
+        offd = (corrv :!= .) :& (idr :!= idc) :& (abs(corrv) :!= 1)
+
+        if (customthres != -9) {
+            thres  = customthres
+            fthres = 0.5*ln((1+thres)/(1-thres))
+            sd = .
+            df = .
+        }
+        else {
+            fz = select(0.5 :* ln((1 :+ corrv) :/ (1 :- corrv)), offd)
+            M  = rows(fz)
+            _sort(fz, 1)
+            p25 = tmo_sum_pctile(fz, 0.25)
+            p75 = tmo_sum_pctile(fz, 0.75)
+            sd  = (p75 - p25)/(invnormal(0.75) - invnormal(0.25))
+            df  = 1/(sd^2)
+
+            fzabs = abs(fz)
+            _sort(fzabs, 1)
+            // Q(delta) = (1 - rank/M) - 2*(1 - 2*(Phi(|fz|/sd) - .5))
+            q = (1 :- (1::M):/M) - 2:*(1 :- 2:*(normal(fzabs:/sd) :- 0.5))
+            qmax   = max(q)
+            fthres = min(select(fzabs, abs(q :- qmax) :<= 1e-10))
+            thres  = tanh(fthres)
+        }
+
+        // pair contributions, replicating sandwich_crosssec + resxtildenorm:
+        // (res1_i*res1_j)*(xt_i*xt_j) * (sum xt^2)^-2 * (1 + offdiag)
+        xx = (r1r :* r1c) :* (xtr :* xtc)
+        xx = xx :* (1/(quadcross(xtilde_wgt, xtilde_wgt))^2) :* (1 :+ (idr :!= idc))
+
+        if (args() == 10) {
+            origc = same_cl
+        }
+        else {
+            origc = (idr :== idc)
+        }
+
+        dofadj = st_numscalar("se")^2 / quadsum(select(xx, origc))
+        keep   = ((abs(corrv) :>= thres) :& (corrv :!= .)) :| origc
+        tmose  = sqrt(quadsum(select(xx, keep)) * dofadj)
+
+        offdN     = sum(idr :!= idc)
+        offdNnocl = sum(!origc)
+        selN      = sum(keep :& (idr :!= idc))
+        selNnocl  = sum(((abs(corrv) :>= thres) :& (corrv :!= .)) :& !origc)
+
+        st_numscalar("thres",     thres)
+        st_numscalar("fthres",    fthres)
+        st_numscalar("sd",        sd)
+        st_numscalar("df",        df)
+        st_numscalar("dof_adj",   dofadj)
+        st_numscalar("tmo_se",    tmose)
+        st_numscalar("offdN",     offdN)
+        st_numscalar("offdNnocl", offdNnocl)
+        st_numscalar("offdP",     selN/offdN)
+        st_numscalar("offdPnocl", selNnocl/offdNnocl)
+    }
+end
+
+
+* Fast-path v2: correlations kept as an NxN matrix; threshold from vech();
+* SE sums as quadratic forms a'(M a) -- no dyad dataset, no wide vectors
+cap mata: mata drop corr_resid_fast()
+cap mata: mata drop tmo_fast_cs2()
+mata
+    void corr_resid_fast(real matrix Res0, real scalar misslimit, real matrix CovEps)
+    // standardization + pairwise correlation matrix, verbatim from corr_resid()
+    {
+        real matrix Res, Res_ms, Res_ms_lethres, Res_ms_ind, Res_ms_ind_tr, Res_no_ms
+        real matrix Denom, ResSum_DinBoth, ResMean_DinBoth, ResMeanProd_DinBoth
+        real matrix Sum_ResSq_DinBoth, ResSD_DinBoth, DenomCorr
+
+        Res = Res0
+        Res_ms = colsum(Res:==.)
+        Res_ms_lethres = (Res_ms:/rows(Res)):<=misslimit
+        Res = select(Res,Res_ms_lethres)
+
+        Res = Res:-J(rows(Res),1,colsum(Res):/colsum(Res:!=.))
+        Res = Res:/J(rows(Res),1,(colsum(Res:^2):/colsum(Res:!=.)):^0.5)
+
+        Res_ms_ind = Res:!=.
+        Res_ms_ind_tr = Res_ms_ind'
+        Res_no_ms = editmissing(Res,0)
+        Denom = Res_ms_ind*Res_ms_ind_tr
+
+        ResSum_DinBoth = Res_no_ms * Res_ms_ind_tr
+        ResMean_DinBoth = ResSum_DinBoth :/ Denom
+        ResMeanProd_DinBoth = ResMean_DinBoth :* ResMean_DinBoth'
+
+        CovEps = ((Res_no_ms*Res_no_ms'):/Denom) - (ResMean_DinBoth:*(ResSum_DinBoth':/Denom)) - (ResMean_DinBoth':*(ResSum_DinBoth:/Denom)) + ResMeanProd_DinBoth
+
+        Sum_ResSq_DinBoth = (Res_no_ms:^2) * Res_ms_ind_tr
+        ResSD_DinBoth = ((Sum_ResSq_DinBoth:/Denom) + (-2:*ResMean_DinBoth:*(ResSum_DinBoth:/Denom)) + ResMean_DinBoth:^2) :^ 0.5
+
+        DenomCorr = ResSD_DinBoth :* ResSD_DinBoth'
+        CovEps = CovEps:/DenomCorr
+    }
+
+    void tmo_fast_cs2(real matrix CovEps,
+                      real colvector Res1,
+                      real colvector xtilde_wgt,
+                      real scalar customthres,
+                      | real colvector clvecin)
+    {
+        real colvector c, dmask, usable, fz, fzabs, q, a, clvec
+        real matrix sel, clm, keepm
+        real scalar Nn, M, sd, p25, p75, fthres, thres, qmax, df
+        real scalar denom, sum_orig, sum_keep, dofadj, tmose, hascl
+        real scalar offdN, offdNnocl, selN, selNnocl, Scl, uno_cl, i
+
+        Nn = rows(CovEps)
+        hascl = (args() == 5)
+
+        // --- threshold from the vech of the correlation matrix
+        c = vech(CovEps)
+        dmask = vech(I(Nn))                       // 1 on diagonal positions
+        usable = (c :!= .) :& (dmask :== 0) :& (abs(c) :!= 1)
+
+        if (customthres != -9) {
+            thres  = customthres
+            fthres = 0.5*ln((1+thres)/(1-thres))
+            sd = .
+            df = .
+        }
+        else {
+            fz = select(0.5 :* ln((1 :+ c) :/ (1 :- c)), usable)
+            M  = rows(fz)
+            _sort(fz, 1)
+            p25 = tmo_sum_pctile(fz, 0.25)
+            p75 = tmo_sum_pctile(fz, 0.75)
+            sd  = (p75 - p25)/(invnormal(0.75) - invnormal(0.25))
+            df  = 1/(sd^2)
+
+            fzabs = abs(fz)
+            _sort(fzabs, 1)
+            q = (1 :- (1::M):/M) - 2:*(1 :- 2:*(normal(fzabs:/sd) :- 0.5))
+            qmax   = max(q)
+            fthres = min(select(fzabs, abs(q :- qmax) :<= 1e-10))
+            thres  = tanh(fthres)
+        }
+
+        // --- SE sums as quadratic forms
+        a = editmissing(Res1 :* xtilde_wgt, 0)
+        denom = 1/(quadcross(xtilde_wgt, xtilde_wgt))^2
+
+        sel = (abs(CovEps) :>= thres) :& (CovEps :!= .)   // includes diagonal (corr=1)
+        if (hascl) {
+            clvec = clvecin[., 1]
+            // NB: this mata does not broadcast N x 1 :== 1 x N, build by column
+            clm = J(Nn, Nn, 0)
+            for (i=1; i<=Nn; i++) clm[., i] = (clvec :== clvec[i])                       // includes diagonal
+            keepm = sel :| clm
+            sum_orig = quadcross(a, clm*a) * denom
+        }
+        else {
+            keepm = sel
+            sum_orig = quadsum(a:^2) * denom
+        }
+        sum_keep = quadcross(a, keepm*a) * denom
+
+        dofadj = st_numscalar("se")^2 / sum_orig
+        tmose  = sqrt(sum_keep * dofadj)
+
+        // --- counters (unordered pairs, matching the dyad-based counts)
+        offdN = Nn*(Nn-1)/2
+        if (hascl) {
+            Scl = quadsum(clm)                     // ordered incl diagonal
+            uno_cl = (Scl + Nn)/2                  // unordered incl diagonal
+            offdNnocl = Nn*(Nn+1)/2 - uno_cl
+            selNnocl  = quadsum(sel :& !clm)/2
+        }
+        else {
+            offdNnocl = offdN
+            selNnocl  = (quadsum(sel) - quadsum(diagonal(sel)))/2
+        }
+        selN = (quadsum(keepm) - quadsum(diagonal(keepm)))/2
+
+        st_numscalar("N",         Nn)
+        st_numscalar("thres",     thres)
+        st_numscalar("fthres",    fthres)
+        st_numscalar("sd",        sd)
+        st_numscalar("df",        df)
+        st_numscalar("dof_adj",   dofadj)
+        st_numscalar("tmo_se",    tmose)
+        st_numscalar("offdN",     offdN)
+        st_numscalar("offdNnocl", offdNnocl)
+        st_numscalar("offdP",     selN/offdN)
+        st_numscalar("offdPnocl", selNnocl/offdNnocl)
+    }
 end

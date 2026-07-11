@@ -158,8 +158,11 @@ sjlog close, replace
 
 *-------------------------------------------------------------------------------
 *--- (6) Real-data application: Acemoglu et al. (2019), democracy and growth
-*    Replicates Table 2 Column 3 (preferred spec) and applies tmo augmenting
-*    the original country-level clustering. Practical notes:
+*    A diagnostic guide for WHEN to use tmo. Replicates Table 2 Column 3
+*    (preferred spec) and runs the diagnostic battery of DellaVigna et al.:
+*    correlation histogram + null fit, SE across thresholds, predictors of
+*    highly-correlated country pairs, and the method-comparison table.
+*    Practical notes:
 *      - lags are pre-computed as variables (ts-operators inside cmd() break
 *        once tmo subsets to the estimation sample of an unbalanced panel)
 *      - the regressor of interest (dem) is listed immediately after the
@@ -171,11 +174,6 @@ forval j = 1/4 {
     gen ly`j' = l`j'.y
 }
 
-* baseline: same estimates as ANRR's xtreg, fe (Table 2 Column 3)
-qui areg y dem ly1 ly2 ly3 ly4 yy*, absorb(wbcode2) cluster(wbcode2)
-di as text "ANRR Table 2 Col 3:  beta = " %6.4f _b[dem] "   cluster SE = " %6.4f _se[dem]
-
-sjlog using "$PPR/examples/acemogluExample.tex", replace
 * auxiliary outcomes: country-year economic variables from the replication
 * package (education, trade, investment, TFP, mortality, taxes, reforms,
 * population, external assets); democracy measures are excluded
@@ -185,6 +183,73 @@ local ylist lp_bl ls_bl lh_bl taxratio secenr prienr tradewb mortnew ginv ///
     PopulationtotalSPPOPTOTL Populationages014oftotal ///
     Populationages1564oftota gdppercapitaconstant2000us rgdpl2 rgdpna_full
 
+tempfile aceb
+save `aceb'
+
+* baseline: same estimates as ANRR's xtreg, fe (Table 2 Column 3)
+qui areg y dem ly1 ly2 ly3 ly4 yy*, absorb(wbcode2) cluster(wbcode2)
+scalar se_ace_base = _se[dem]
+di as text "ANRR Table 2 Col 3:  beta = " %6.4f _b[dem] "   cluster SE = " %6.4f _se[dem]
+
+*--- (6a) TMO augmenting the original clustering, with diagnostics
+sjlog using "$PPR/examples/acemogluExample.tex", replace
 tmo, cmd(areg y dem ly1 ly2 ly3 ly4 yy*, absorb(wbcode2) cluster(wbcode2)) ///
-    x(dem) ylist(`ylist') i(wbcode2) t(year)
+    x(dem) ylist(`ylist') i(wbcode2) t(year) ///
+    plothist plotse savedyad file("figures/acemoglu")
 sjlog close, replace
+
+scalar se_ace_tmo = e(tmo_se)
+scalar thr_ace    = e(threshold)
+di as text "TMO/cluster ratio: " %6.3f se_ace_tmo/se_ace_base
+
+*--- (6b) method comparison (feeds the paper's comparison table)
+use `aceb', clear
+qui tmo, cmd(areg y dem ly1 ly2 ly3 ly4 yy*, absorb(wbcode2) cluster(wbcode2)) ///
+    x(dem) ylist(`ylist') i(wbcode2) t(year) ///
+    lat(cen_lat) lon(cen_lon) distthreshold(650) miles thresholdoff
+di as text "[Conley650]  SE=" %7.4f e(tmo_se) " ratio=" %6.3f e(tmo_se)/se_ace_base
+
+use `aceb', clear
+qui tmo, cmd(areg y dem ly1 ly2 ly3 ly4 yy*, absorb(wbcode2) cluster(wbcode2)) ///
+    x(dem) ylist(`ylist') i(wbcode2) t(year) ///
+    lat(cen_lat) lon(cen_lon) distthreshold(650) miles
+di as text "[TMO+Con650] SE=" %7.4f e(tmo_se) " ratio=" %6.3f e(tmo_se)/se_ace_base ///
+    " pct=" %6.3f e(pct_ge_thres)
+
+*--- (6c) predictors of highly-correlated country pairs (feeds the paper's
+*    Table-1-style diagnostic table)
+use `aceb', clear
+keep wbcode2 country_name cen_lat cen_lon region gdp1960
+qui gduplicates drop
+rename (wbcode2 country_name cen_lat cen_lon region gdp1960) ///
+       (id1 name1 lat1 lon1 reg1 gdp1)
+tempfile ace_c1
+save `ace_c1'
+rename (id1 name1 lat1 lon1 reg1 gdp1) (id2 name2 lat2 lon2 reg2 gdp2)
+tempfile ace_c2
+save `ace_c2'
+
+use "$PPR/figures/acemoglu_dyad.dta", clear
+keep if id1!=id2
+merge m:1 id1 using `ace_c1', keep(3) nogen
+merge m:1 id2 using `ace_c2', keep(3) nogen
+qui geodist lat1 lon1 lat2 lon2, gen(distmi) miles sphere
+gen byte above    = (abs(corr)>=thr_ace) & !missing(corr)
+gen byte near650  = distmi<=650
+gen byte samereg  = (reg1==reg2) & !missing(reg1)
+gen dgdp = abs(gdp1-gdp2)
+qui _pctile dgdp, p(10)
+gen byte neargdp  = dgdp<=r(r1) if !missing(dgdp)
+gen byte anyclose = near650==1 | samereg==1 | neargdp==1
+
+di as text _n "Predictors of |corr|>=threshold country pairs (vs all pairs):"
+foreach v in near650 samereg neargdp anyclose {
+    qui sum `v' if above==1
+    local pa = 100*r(mean)
+    qui sum `v'
+    di as text "  `v': " %5.1f `pa' "%  (all pairs: " %5.1f 100*r(mean) "%)"
+}
+gsort -above -distmi
+di as text _n "Most distant highly-correlated pairs:"
+li name1 name2 corr distmi in 1/5, noobs clean
+erase "$PPR/figures/acemoglu_dyad.dta"

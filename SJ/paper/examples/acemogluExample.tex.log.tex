@@ -1,63 +1,66 @@
-. * auxiliary outcomes: country-year economic variables from the replication
-. * package (education, trade, investment, TFP, mortality, taxes, reforms,
-. * population, external assets); democracy measures are excluded
-. local ylist lp_bl ls_bl lh_bl taxratio secenr prienr tradewb mortnew ginv ///
->     rtfpna unrest unrestn marketref gfa nfa totalassets totalliabilities ///
->     nfagdp loginvpc ltfp ltrade2 lprienr lsecenr lgov lmort ///
->     PopulationtotalSPPOPTOTL Populationages014oftotal ///
->     Populationages1564oftota gdppercapitaconstant2000us rgdpl2 rgdpna_full
-{\smallskip}
-. 
 . tmo, cmd(areg y dem ly1 ly2 ly3 ly4 yy*, absorb(wbcode2) cluster(wbcode2)) //
 > /
->     x(dem) ylist(`ylist') i(wbcode2) t(year)
-Computed 0.10\% of sandwich
-Computed 2.23\% of sandwich
-Computed 4.36\% of sandwich
-Computed 6.48\% of sandwich
-Computed 8.61\% of sandwich
-Computed 10.74\% of sandwich
-Computed 12.87\% of sandwich
-Computed 14.99\% of sandwich
-Computed 17.12\% of sandwich
-Computed 19.25\% of sandwich
-Computed 21.38\% of sandwich
-Computed 23.50\% of sandwich
-Computed 25.63\% of sandwich
-Computed 27.76\% of sandwich
-Computed 29.89\% of sandwich
-Computed 32.02\% of sandwich
-Computed 34.14\% of sandwich
-Computed 36.27\% of sandwich
-Computed 38.40\% of sandwich
-Computed 40.53\% of sandwich
-Computed 42.65\% of sandwich
-Computed 44.78\% of sandwich
-Computed 46.91\% of sandwich
-Computed 49.04\% of sandwich
-Computed 51.16\% of sandwich
-Computed 53.29\% of sandwich
-Computed 55.42\% of sandwich
-Computed 57.55\% of sandwich
-Computed 59.67\% of sandwich
-Computed 61.80\% of sandwich
-Computed 63.93\% of sandwich
-Computed 66.06\% of sandwich
-Computed 68.19\% of sandwich
-Computed 70.31\% of sandwich
-Computed 72.44\% of sandwich
-Computed 74.57\% of sandwich
-Computed 76.70\% of sandwich
-Computed 78.82\% of sandwich
-Computed 80.95\% of sandwich
-Computed 83.08\% of sandwich
-Computed 85.21\% of sandwich
-Computed 87.33\% of sandwich
-Computed 89.46\% of sandwich
-Computed 91.59\% of sandwich
-Computed 93.72\% of sandwich
-Computed 95.84\% of sandwich
-Computed 97.97\% of sandwich
+>     x(dem) ylist(`ylist') i(wbcode2) t(year) ///
+>     plothist plotse savedyad file("figures/acemoglu")
+Computed 0.01\% of sandwich
+Computed 2.13\% of sandwich
+Computed 4.26\% of sandwich
+Computed 6.39\% of sandwich
+Computed 8.52\% of sandwich
+Computed 10.64\% of sandwich
+Computed 12.77\% of sandwich
+Computed 14.90\% of sandwich
+Computed 17.03\% of sandwich
+Computed 19.16\% of sandwich
+Computed 21.28\% of sandwich
+Computed 23.41\% of sandwich
+Computed 25.54\% of sandwich
+Computed 27.67\% of sandwich
+Computed 29.79\% of sandwich
+Computed 31.92\% of sandwich
+Computed 34.05\% of sandwich
+Computed 36.18\% of sandwich
+Computed 38.30\% of sandwich
+Computed 40.43\% of sandwich
+Computed 42.56\% of sandwich
+Computed 44.69\% of sandwich
+Computed 46.82\% of sandwich
+Computed 48.94\% of sandwich
+Computed 51.07\% of sandwich
+Computed 53.20\% of sandwich
+Computed 55.33\% of sandwich
+Computed 57.45\% of sandwich
+Computed 59.58\% of sandwich
+Computed 61.71\% of sandwich
+Computed 63.84\% of sandwich
+Computed 65.96\% of sandwich
+Computed 68.09\% of sandwich
+Computed 70.22\% of sandwich
+Computed 72.35\% of sandwich
+Computed 74.47\% of sandwich
+Computed 76.60\% of sandwich
+Computed 78.73\% of sandwich
+Computed 80.86\% of sandwich
+Computed 82.99\% of sandwich
+Computed 85.11\% of sandwich
+Computed 87.24\% of sandwich
+Computed 89.37\% of sandwich
+Computed 91.50\% of sandwich
+Computed 93.62\% of sandwich
+Computed 95.75\% of sandwich
+Computed 97.88\% of sandwich
+(file{\bftt{ figures/acemoglu_dyad.dta}} not found)
+file{\bftt{ figures/acemoglu_dyad.dta}} saved
+(file {\bftt{figures/acemoglu_hist.png}} not found)
+file {\bftt{figures/acemoglu_hist.png}} written in PNG format
+Calculating TMO SE over threshold at 0.00
+Calculating TMO SE over threshold at 0.20
+Calculating TMO SE over threshold at 0.40
+Calculating TMO SE over threshold at 0.60
+Calculating TMO SE over threshold at 0.80
+Calculating TMO SE over threshold at 1.00
+file{\bftt{ figures/acemoglu_se_ratio_over_thres.pdf}} saved as PDF format
+file{\bftt{ figures/acemoglu_prop_above_thres.pdf}} saved as PDF format
 {\smallskip}
 Linear Regression with TMO                              Number of obs =  6,336
                                                         R-squared     = 0.9989
@@ -67,7 +70,7 @@ Linear Regression with TMO                              Number of obs =  6,336
 \HLI{13}{\TOPT}\HLI{64}
            y {\VBAR} Coefficient  Std. err.      t    P>|t|     [95\% conf. interval]
 \HLI{13}{\PLUS}\HLI{64}
-         dem {\VBAR}   .7865534   .2685103     2.93   0.004     .2565969     1.31651
+         dem {\VBAR}   .7865534   .2683049     2.93   0.004     .2570023    1.316105
 \HLI{13}{\BOTT}\HLI{64}
 \HLI{79}
                                                                                

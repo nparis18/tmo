@@ -533,25 +533,81 @@ TMO--SCPC estimator in the same syntax used for the other examples.
 
 Figure \ref{fig:combined} visualises each combination for the focal county of Figure \ref{fig:illustration}, with every layer derived from the pair-level output of the corresponding {\tt tmo} run.  Two features deserve emphasis, since the combined estimators inherit very different structures from their two components.  First, the TMO contribution is deliberately \textit{sparse}: only the small set of counties whose auxiliary outcomes systematically co-move with the focal county is selected (shown in red in panels c and d), and these counties may lie anywhere on the map.  Second, the baseline contributions differ in their density.  The Conley disk (panel b) and Bartlett kernel (panel c) are \textit{local and bounded}: weights are confined within the distance cutoff, and are zero everywhere else---so that the map is mostly unshaded.  The SCPC kernel (panel d, background), by contrast, is \textit{dense and global}: because SCPC conducts inference through a handful of smooth low-frequency spatial components, every pair of counties receives some weight, without any threshold or cutoff, and the entire map is therefore shaded.  This is not an artefact of the figure but a faithful depiction of the estimator: in the combined TMO--SCPC variance, the red counties contribute their raw residual covariance, while every remaining county contributes through the smoothly varying kernel weight shown in the background.  The comparison also clarifies the division of labour in equation \eqref{eqn:combined}: the baseline captures diffuse, geographically organised dependence---sharply bounded for Conley, smooth and global for SCPC---while TMO adds the specific, potentially distant, pairs that geography alone would miss.
 
-\subsubsection{A practical guide: applying {\tt tmo} to \citet{Acemogluetal2019}}
+\subsubsection{When should you use {\tt tmo}?  A diagnostic guide, applied to \citet{Acemogluetal2019}}
 \label{sscn:guide}
-The procedures discussed in this paper are in no way specific to U.S.\ counties: any setting with a cross-section (or panel) of locations and a collection of auxiliary outcomes is amenable to TMO, including cross-country data.  To close this section, we use a well-known cross-country application to lay out, end to end, the workflow we suggest for applying {\tt tmo} to one's own research.  \citet{Acemogluetal2019} estimate the effect of democratisation on economic growth in a panel of 175 countries observed between 1960 and 2010, in the dynamic specification
+The examples so far document \textit{how} to run the command.  The more important question for a practitioner is \textit{when}: given a particular dataset and regression, is TMO needed at all, and should it replace or complement a distance-based correction?  \citet{Dellavignaetal2025} propose a series of empirical diagnostics to answer precisely these questions, and in this subsection we walk through them, end to end, in a well-known cross-country application.  \citet{Acemogluetal2019} estimate the effect of democratisation on economic growth in a panel of 175 countries observed between 1960 and 2010, in the dynamic specification
 \begin{equation*}
   \log y_{ct} = \beta\, dem_{ct} + \sum_{j=1}^{4}\gamma_j \log y_{c,t-j} + \alpha_c + \delta_t + \epsilon_{ct},
 \end{equation*}
-with standard errors clustered by country (their Table 2, Column 3, described by the authors as their preferred specification).  \citet{Dellavignaetal2025} revisit this application, and we follow their treatment here.  The workflow consists of four steps.
-
-\paragraph{Step 1: reproduce the original specification.}  TMO adjusts the standard error of an estimate; the first step is therefore to reproduce the published point estimate with a supported command.  The original paper uses {\tt xtreg, fe}; the identical within-estimator is available through {\tt areg} (or {\tt reghdfe}), which {\tt tmo} supports.  Estimating the model above yields $\widehat\beta = 0.787$ with a cluster-robust standard error of $0.230$ ($0.226$ in the original {\tt xtreg} parameterisation, the difference reflecting only the commands' degrees-of-freedom conventions).  Two practical notes arise in dynamic panels such as this one.  First, lags should be generated as ordinary variables before calling {\tt tmo} rather than written with time-series operators inside {\tt cmd()}: the command subsets internally to the estimation sample, and in an unbalanced panel time-series operators would silently re-compute lags across gaps.  Second, the regressor of interest should be listed immediately after the dependent variable in {\tt cmd()}.
-
-\paragraph{Step 2: assemble the auxiliary outcomes.}  The credibility of the adjustment rests on the collection of auxiliary outcomes, which should (i) be measured for the same locations (and periods), (ii) plausibly share the cross-location correlation structure of the main outcome, and (iii) not be alternative measurements of the treatment itself.  From the replication package we collect roughly thirty country-year economic series---education attainment and enrolment, trade, investment, TFP, child mortality, tax revenues, market reforms, unrest, population structure, and external assets and liabilities---while excluding the package's alternative democracy indices.  The {\tt misslimit()} option governs how much missingness is tolerated per outcome.  When the available collection is thin, it can be supplemented from public sources: \citet{Dellavignaetal2025} augment this same application with UN and World Bank series (the Gini index and government debt, among others) to reach 79 outcomes.
-
-\paragraph{Step 3: run {\tt tmo}, augmenting the original inference.}  Passing the original (clustered) command line through {\tt cmd()} means TMO \textit{augments} the published inference: within-country covariance terms are retained, and the auxiliary outcomes determine which cross-country pairs enter in addition.
+with standard errors clustered by country (their Table 2, Column 3, described by the authors as their preferred specification).  Reproducing this specification with {\tt areg}---the within estimator, identical to the original {\tt xtreg, fe}---returns the published point estimate exactly, $\widehat\beta = 0.787$, with a cluster-robust standard error of $0.230$ ($0.226$ under {\tt xtreg}'s degrees-of-freedom convention).\footnote{Two practical notes for dynamic panels: lags should be generated as ordinary variables before calling {\tt tmo}, rather than written with time-series operators inside {\tt cmd()} (the command subsets internally to the estimation sample, and in an unbalanced panel time-series operators would silently re-compute lags across gaps), and the regressor of interest should be listed immediately after the dependent variable in {\tt cmd()}.}  As auxiliary outcomes we assemble roughly thirty country-year economic series from the replication package---education attainment and enrolment, trade, investment, TFP, child mortality, tax revenues, market reforms, unrest, population structure, and external assets---excluding the package's alternative democracy indices, which measure the treatment rather than outcomes.  The log below runs {\tt tmo} augmenting the original clustering, and requests the two diagnostic figures discussed next:
 
 \begin{stlog}
 \input{examples/acemogluExample.tex.log}
 \end{stlog}
 
-\paragraph{Step 4: read the diagnostics.}  With the package's outcomes alone, the TMO standard error is $0.269$---17\%\ above the cluster-robust estimate of Step 1---leaving the effect of democratisation on GDP per capita statistically significant.  The diagnostic block guides interpretation: the estimated degrees of freedom of the null distribution (around 37 here) summarise how informative the auxiliary collection is, and the optimal threshold ($\hat\delta \approx 0.39$) retains a small fraction of country pairs.  Two comparisons are instructive.  First, \citet{Dellavignaetal2025}, using their richer 79-outcome collection, obtain a smaller adjustment (a ratio of 1.06, with $\hat\delta = 0.27$ and 79 degrees of freedom): richer collections allow lower thresholds and sharper separation of null from non-null pairs, and the two figures bracket the plausible correction.  Second, the same combinations discussed above remain available here: the package includes country centroids, so distance-based augmentation ({\tt distthreshold()}, for which \citeauthor{Dellavignaetal2025} use a 650-mile bandwidth at the country level) and the SCPC combination ({\tt scpc\_cmd()}) apply exactly as in the county example.
+\paragraph{Diagnostic 1: is there dependence for TMO to find, and can it be measured reliably?}
+\citet{Dellavignaetal2025} recommend two checks before trusting any TMO adjustment, both produced by the command ({\tt plothist} and {\tt plotse}) and displayed in Figure \ref{fig:acediag}.  First, the central mass of the distribution of pairwise correlations should be well approximated by the fitted Gaussian null: a heavily skewed centre indicates too much common correlation across the auxiliary outcomes, and an unreliable null.  Here the fit is adequate (panel a), with clear excess mass in the tails---the non-null pairs TMO exists to capture---and an estimated 36 degrees of freedom, above the minimum of 20 that \citeauthor{Dellavignaetal2025} recommend, though they caution that panel settings benefit from more.  Second, the standard error should vary smoothly with the threshold in the neighbourhood of $\hat\delta^\star$ (panel b).  With only 175 locations the curve is visibly noisier than in county-level applications---exactly the small-$N$ caution raised by \citeauthor{Dellavignaetal2025}, who show that with as few as 60 countries (\textit{e.g.}, in their re-analysis of Funke et al.\ 2023) both diagnostics fail and the procedure becomes unreliable---but it is stable around the optimum $\hat\delta^\star = 0.39$.  When either diagnostic fails, the remedy is a larger or more relevant collection of outcomes, not a different threshold.
+
+\begin{figure}[H]
+  \caption{Diagnostics for the application to \citet{Acemogluetal2019}}
+  \label{fig:acediag}
+  \begin{subfigure}{0.49\textwidth}
+      \includegraphics[width=\linewidth]{figures/acemoglu_hist.png}
+    \caption{Correlations and fitted null}
+    \label{fig:acediag_hist}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}{0.49\textwidth}
+      \includegraphics[width=\linewidth]{figures/acemoglu_se_ratio_over_thres.pdf}
+    \caption{SE ratio across thresholds}
+    \label{fig:acediag_se}
+  \end{subfigure}
+\end{figure}
+
+\paragraph{Diagnostic 2: is the dependence geographic?}
+This is the question that decides between corrections.  Following Table 1 of \citet{Dellavignaetal2025}, Table \ref{tab:acepredictors} asks what the country pairs selected by TMO ($|\hat\rho_{ii^\prime}| \geq \hat\delta^\star$, some 800 pairs) have in common.  Geographic proximity is informative but startlingly incomplete: only 11\%\ of selected pairs lie within 650 miles of one another (the Conley bandwidth \citeauthor{Dellavignaetal2025} adopt at the country level).  Being in the same world region does far better (47\%), initial income proximity adds little, and even taking all three criteria together leaves \textit{half} of the selected pairs unexplained.  The flavour of the unexplained half is instructive: among the most strongly correlated country pairs sit Sweden--Finland (317 miles apart), but also the United States--United Kingdom ($\hat\rho = 0.83$ at 4,400 miles) and Indonesia--Colombia ($\hat\rho = 0.67$ at 11,800 miles)---pairs linked by common growth trajectories, trade exposure, or commodity dependence rather than by geography, and invisible to any distance kernel.
+
+\begin{table}[H]
+\centering
+\caption{Predictors of highly-correlated country pairs, \citet{Acemogluetal2019} data}
+\label{tab:acepredictors}
+\begin{tabular}{lcc}
+\toprule
+ & Among pairs with $|\hat\rho_{ii^\prime}|\geq\hat\delta^\star$ & Among all pairs \\
+\midrule
+Within 650 miles              & 10.7\% & 2.9\% \\
+Same world region             & 46.7\% & 16.7\% \\
+Top 10\% closest, 1960 GDP pc & 16.4\% & 10.0\% \\
+Any of the above              & 51.7\% & 21.5\% \\
+\bottomrule
+\end{tabular}
+\par\smallskip
+{\footnotesize Notes: share of country pairs satisfying each proximity criterion, among the 822 pairs selected by the TMO threshold ($\hat\delta^\star=0.39$) and among all country pairs.  Computed from the pair-level file saved by {\tt savedyad}.}
+\end{table}
+
+\paragraph{Diagnostic 3: how much does each correction move the standard error?}
+Table \ref{tab:acecompare} completes the argument by comparing the corrections directly, alongside the corresponding estimates in \citet[Table 5]{Dellavignaetal2025}.  The Conley adjustment barely moves the standard error (a ratio of 1.03---identical, along with its share of admitted pairs, to the published figure, a useful validation of the implementation): consistent with Diagnostic 2, the dependence in these data is simply not organised by distance.  TMO, by contrast, raises the standard error by 17\%, and adding the Conley disk on top of TMO changes essentially nothing---the distance-based pairs contribute little that the auxiliary outcomes had not already found.  Our adjustment is larger than the published 1.06, which is based on a collection of 79 auxiliary outcomes (the package's series supplemented with UN and World Bank data); the contrast is a live illustration of \citeauthor{Dellavignaetal2025}'s recommendation that the collection of outcomes---their number \textit{and} their relevance---is the researcher's most consequential choice.  In all cases the effect of democratisation remains statistically significant.
+
+\begin{table}[H]
+\centering
+\caption{Method comparison, \citet{Acemogluetal2019} application}
+\label{tab:acecompare}
+\begin{tabular}{lccc}
+\toprule
+ & SE & Ratio to clustered & \citet{Dellavignaetal2025} \\
+\midrule
+Cluster by country            & 0.230 & 1.00          & 1.00 \\
+Conley (650 mi)               & 0.236 & 1.03 [2.9\%]  & 1.03 [2.9\%] \\
+TMO                           & 0.268 & 1.17 [5.4\%]  & 1.06 [6.0\%] \\
+TMO + Conley (650 mi)         & 0.268 & 1.17 [7.8\%]  & 1.07 [8.1\%] \\
+SCPC / TMO + SCPC             & \multicolumn{2}{c}{---}       & 1.01 / 1.10 \\
+\bottomrule
+\end{tabular}
+\par\smallskip
+{\footnotesize Notes: ratios relative to the country-clustered standard error (0.230); brackets report the share of off-diagonal country pairs admitted to the variance.  The final column reports the corresponding ratios in \citet[Table 5]{Dellavignaetal2025}, whose TMO figures use 79 auxiliary outcomes.  The SCPC rows are omitted for our implementation: the current {\tt scpc} release does not support this clustered dynamic panel through {\tt scpc\_cmd()}.}
+\end{table}
+
+\paragraph{Taking stock.}  The pattern of diagnostics maps directly into advice.  When the correlation-distribution and threshold-stability checks pass, and Table \ref{tab:acepredictors}-style diagnostics show dependence concentrated at short distances, distance-based corrections are appropriate and TMO should confirm rather than change them.  When---as here---a substantial share of detected dependence lies beyond any plausible distance kernel, distance-based corrections understate uncertainty and TMO (alone or combined) is called for.  And when the diagnostics fail---few locations, thin or irrelevant outcome collections, degrees of freedom below roughly 20---the honest conclusion is that TMO cannot be applied reliably, and enriching the auxiliary collection comes before any standard-error claim.
 
 \section{Discussion and Conclusion}
 \label{scn:discussion}

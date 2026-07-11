@@ -253,3 +253,22 @@ gsort -above -distmi
 di as text _n "Most distant highly-correlated pairs:"
 li name1 name2 corr distmi in 1/5, noobs clean
 erase "$PPR/figures/acemoglu_dyad.dta"
+
+*--- (6d) sensitivity of the adjustment to the auxiliary collection (feeds
+*    the paper's sensitivity table). Row 3 is a DELIBERATE misuse example:
+*    treatment measures must be excluded by design, diagnostics won't flag them
+use `aceb', clear
+local yThin lp_bl ls_bl lh_bl taxratio tradewb mortnew ginv rtfpna unrest ///
+    marketref nfagdp lgov prienr secenr PopulationtotalSPPOPTOTL ///
+    Populationages014oftotal Populationages1564oftota
+qui tmo, cmd(areg y dem ly1 ly2 ly3 ly4 yy*, absorb(wbcode2) cluster(wbcode2)) ///
+    x(dem) ylist(`yThin') i(wbcode2) t(year)
+di as text "[thin]    D=" e(N_outcomes) " df=" %5.1f e(dof) " thr=" %5.3f e(threshold) ///
+    " ratio=" %5.3f e(tmo_se)/se_ace_base
+
+use `aceb', clear
+local yContam `ylist' demFH demPOL demBMR demCGV polity2 demevent revevent
+qui tmo, cmd(areg y dem ly1 ly2 ly3 ly4 yy*, absorb(wbcode2) cluster(wbcode2)) ///
+    x(dem) ylist(`yContam') i(wbcode2) t(year)
+di as text "[contam]  D=" e(N_outcomes) " df=" %5.1f e(dof) " thr=" %5.3f e(threshold) ///
+    " ratio=" %5.3f e(tmo_se)/se_ace_base

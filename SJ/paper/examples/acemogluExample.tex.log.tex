@@ -1,54 +1,7 @@
 . tmo, cmd(areg y dem ly1 ly2 ly3 ly4 yy*, absorb(wbcode2) cluster(wbcode2)) //
 > /
 >     x(dem) ylist(`ylist') i(wbcode2) t(year) ///
->     plothist plotse savedyad file("figures/acemoglu")
-Computed 0.01\% of sandwich
-Computed 2.13\% of sandwich
-Computed 4.26\% of sandwich
-Computed 6.39\% of sandwich
-Computed 8.52\% of sandwich
-Computed 10.64\% of sandwich
-Computed 12.77\% of sandwich
-Computed 14.90\% of sandwich
-Computed 17.03\% of sandwich
-Computed 19.16\% of sandwich
-Computed 21.28\% of sandwich
-Computed 23.41\% of sandwich
-Computed 25.54\% of sandwich
-Computed 27.67\% of sandwich
-Computed 29.79\% of sandwich
-Computed 31.92\% of sandwich
-Computed 34.05\% of sandwich
-Computed 36.18\% of sandwich
-Computed 38.30\% of sandwich
-Computed 40.43\% of sandwich
-Computed 42.56\% of sandwich
-Computed 44.69\% of sandwich
-Computed 46.82\% of sandwich
-Computed 48.94\% of sandwich
-Computed 51.07\% of sandwich
-Computed 53.20\% of sandwich
-Computed 55.33\% of sandwich
-Computed 57.45\% of sandwich
-Computed 59.58\% of sandwich
-Computed 61.71\% of sandwich
-Computed 63.84\% of sandwich
-Computed 65.96\% of sandwich
-Computed 68.09\% of sandwich
-Computed 70.22\% of sandwich
-Computed 72.35\% of sandwich
-Computed 74.47\% of sandwich
-Computed 76.60\% of sandwich
-Computed 78.73\% of sandwich
-Computed 80.86\% of sandwich
-Computed 82.99\% of sandwich
-Computed 85.11\% of sandwich
-Computed 87.24\% of sandwich
-Computed 89.37\% of sandwich
-Computed 91.50\% of sandwich
-Computed 93.62\% of sandwich
-Computed 95.75\% of sandwich
-Computed 97.88\% of sandwich
+>     plothist plothistnbins(100) plotse savedyad file("figures/acemoglu")
 (file{\bftt{ figures/acemoglu_dyad.dta}} not found)
 file{\bftt{ figures/acemoglu_dyad.dta}} saved
 file {\bftt{figures/acemoglu_hist.png}} written in PNG format

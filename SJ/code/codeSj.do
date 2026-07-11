@@ -195,7 +195,7 @@ di as text "ANRR Table 2 Col 3:  beta = " %6.4f _b[dem] "   cluster SE = " %6.4f
 sjlog using "$PPR/examples/acemogluExample.tex", replace
 tmo, cmd(areg y dem ly1 ly2 ly3 ly4 yy*, absorb(wbcode2) cluster(wbcode2)) ///
     x(dem) ylist(`ylist') i(wbcode2) t(year) ///
-    plothist plotse savedyad file("figures/acemoglu")
+    plothist plothistnbins(100) plotse savedyad file("figures/acemoglu")
 sjlog close, replace
 
 scalar se_ace_tmo = e(tmo_se)

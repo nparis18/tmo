@@ -442,7 +442,7 @@ interpretation as before.
 Panel–ready data are available as \href{https://raw.githubusercontent.com/wjnkim/tmo/master/example/county_panel.dta}{\texttt{county\_panel.dta}} in the project repository on GitHub.
 \smallskip
 
-In panel settings, \texttt{tmo} incorporates the time dimension through the unit and time identifiers specified in \texttt{idvar()} and \texttt{timevar()}. The command treats \(\{i,t\}\) as a panel, reshapes the normalized residuals into an \(N\times T\) array, and computes cross location correlations using all periods. The sandwich matrix is then built from location pairs \((i,i^\prime)\) combined with time pairs, which increases computational cost; accordingly, the program prints progress messages such as ``\texttt{Computed X\% of sandwich}'' as it accumulates contributions by blocks.
+In panel settings, \texttt{tmo} incorporates the time dimension through the unit and time identifiers specified in \texttt{idvar()} and \texttt{timevar()}. The command treats \(\{i,t\}\) as a panel, reshapes the normalized residuals into an \(N\times T\) array, and computes cross location correlations using all periods. The sandwich matrix is then built from location pairs \((i,i^\prime)\) combined with time pairs, which increases computational cost; for large panels the program prints occasional progress messages (``\texttt{Computed X\% of sandwich}'') as it accumulates contributions by blocks.
 
 \begin{stlog}
 \input{examples/panelexample.tex.log}
@@ -562,6 +562,8 @@ with standard errors clustered by country (their Table 2, Column 3, described by
     \caption{SE ratio across thresholds}
     \label{fig:acediag_se}
   \end{subfigure}
+  \par\smallskip
+  {\footnotesize Notes: produced by the {\tt plothist} and {\tt plotse} options.  The panels are the direct analogues of Figures E.7 and E.8 in \citet{Dellavignaetal2025} for this application, and display the same qualitative anatomy (Gaussian-tracked centre with tail excess; noisy left segment, plateau at the optimum, convergence to one).  The quantitative differences---$\widehat{df}=36$ and $\hat\delta^\star=0.39$ here, versus 79 and 0.27 in the published figures---are entirely attributable to the auxiliary collections (the package's 32 outcomes versus their externally supplemented 79), as documented in Table \ref{tab:aceylist}.}
 \end{figure}
 
 \paragraph{Diagnostic 2: is the dependence geographic?}

@@ -1232,12 +1232,18 @@ program define sandwich_panel
     // We replicate the cross-section case in terms of RAM usage
     local chunk = `P'/`ntime'
 
+    * progress messages: only every 25%, and only for runs large enough for
+    * progress to matter (avoids flooding logs on small panels)
+    local nextpct = 25
     forvalues start = 1(`chunk')`P' {
         local end = min(`start' + `chunk' - 1, `P')
 
-        if "`noisily'"!="" {
-            local donepct = string(`start'*100/`P', "%5.2f")
-            di "Computed `donepct'% of sandwich"
+        if "`noisily'"!="" & `P' > 2000000 {
+            local donepct = `start'*100/`P'
+            if `donepct' >= `nextpct' {
+                di "Computed " string(`donepct', "%5.1f") "% of sandwich"
+                local nextpct = `nextpct' + 25
+            }
         }
         mata: sandwich_panel_loop(`start',`end',`ntime', ///
                                    res1all, xtall, Mout, `cl')

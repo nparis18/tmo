@@ -818,11 +818,25 @@ program define tmo, eclass
                 qui  tsset `idvar' `timevar'
                 tsfill, full
 
-                * Drop time periods that are all missing for resids of main outcome 
+                * Drop time periods that are all missing for resids of main outcome
                 qui gegen __tmo_resid1_missing = sum(!missing(__tmo_resid1)), by(`timevar')
                 qui drop if __tmo_resid1_missing==0
                 drop __tmo_resid1_missing
-                
+
+                * Re-read location-level series on the rectangularised grid:
+                * with an UNBALANCED panel, vectors read before tsfill do not
+                * conform to the N x T grid (rowshape would fail). Filled-in
+                * rows carry zero weight via xtilde (their products drop out).
+                mata: Res1 = st_data(.,"__tmo_resid1")
+                mata: xtilde = st_data(.,"__tmo_xtilde")
+                if "`weightvar'"!="" {
+                    mata: wgt = st_data(.,"`weightvar'")
+                }
+                else {
+                    mata: wgt = J(rows(xtilde),1,1)
+                }
+                mata: xtilde_wgt = editmissing(xtilde:*wgt, 0)
+
                 * Input NT x D matrix of residuals to Mata
                 mata: Res = st_data(.,"__tmo_resid*")
                 mata: Dn = cols(Res)

@@ -155,3 +155,36 @@ tmo, cmd(regress PIN_persincpc_d EDU_college_d, r) ///
     x(EDU_college_d) ylist(`ylist') i(fips) lat(_CY) lon(_CX) ///
     scpc_cmd(reg PIN_persincpc_d EDU_college_d, r)
 sjlog close, replace
+
+*-------------------------------------------------------------------------------
+*--- (6) Real-data application: Acemoglu et al. (2019), democracy and growth
+*    Replicates Table 2 Column 3 (preferred spec) and applies tmo augmenting
+*    the original country-level clustering. Practical notes:
+*      - lags are pre-computed as variables (ts-operators inside cmd() break
+*        once tmo subsets to the estimation sample of an unbalanced panel)
+*      - the regressor of interest (dem) is listed immediately after the
+*        dependent variable in cmd()
+*-------------------------------------------------------------------------------
+use "$ROOT/supporting_material/replication_files_ddcg/DDCGdata_final.dta", clear
+xtset wbcode2 year
+forval j = 1/4 {
+    gen ly`j' = l`j'.y
+}
+
+* baseline: same estimates as ANRR's xtreg, fe (Table 2 Column 3)
+qui areg y dem ly1 ly2 ly3 ly4 yy*, absorb(wbcode2) cluster(wbcode2)
+di as text "ANRR Table 2 Col 3:  beta = " %6.4f _b[dem] "   cluster SE = " %6.4f _se[dem]
+
+sjlog using "$PPR/examples/acemogluExample.tex", replace
+* auxiliary outcomes: country-year economic variables from the replication
+* package (education, trade, investment, TFP, mortality, taxes, reforms,
+* population, external assets); democracy measures are excluded
+local ylist lp_bl ls_bl lh_bl taxratio secenr prienr tradewb mortnew ginv ///
+    rtfpna unrest unrestn marketref gfa nfa totalassets totalliabilities ///
+    nfagdp loginvpc ltfp ltrade2 lprienr lsecenr lgov lmort ///
+    PopulationtotalSPPOPTOTL Populationages014oftotal ///
+    Populationages1564oftota gdppercapitaconstant2000us rgdpl2 rgdpna_full
+
+tmo, cmd(areg y dem ly1 ly2 ly3 ly4 yy*, absorb(wbcode2) cluster(wbcode2)) ///
+    x(dem) ylist(`ylist') i(wbcode2) t(year)
+sjlog close, replace

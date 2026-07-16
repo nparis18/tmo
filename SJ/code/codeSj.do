@@ -272,3 +272,77 @@ qui tmo, cmd(areg y dem ly1 ly2 ly3 ly4 yy*, absorb(wbcode2) cluster(wbcode2)) /
     x(dem) ylist(`yContam') i(wbcode2) t(year)
 di as text "[contam]  D=" e(N_outcomes) " df=" %5.1f e(dof) " thr=" %5.3f e(threshold) ///
     " ratio=" %5.3f e(tmo_se)/se_ace_base
+
+*-------------------------------------------------------------------------------
+*--- (7) Validation: replicating DellaVigna et al.'s application to
+*    Bernini et al. (2023). All 60 auxiliary outcomes come from the paper's
+*    own replication package (Appendix E.2 of DellaVigna et al.); published
+*    targets: coef 0.10, orig SE 0.04, ratio 1.37, d=60, df=25.8,
+*    delta*=0.54, 0.70% of cross-cluster pairs kept.
+*-------------------------------------------------------------------------------
+use "$ROOT/supporting_material/Bernini et al (2023)/datasets/dataset_wide_1.dta", clear
+
+* baseline: Table 2 Column 4 of Bernini et al. (preferred spec); factor-variable
+* syntax replaces the original xi: prefix (identical estimates)
+qui reg ch_ShareBl_AllOfficials black_share60_lit_nc black_share60 ///
+    c.urbanB60#literacy_nc c.unemp60#literacy_nc c.family_less_3000#literacy_nc ///
+    c.pop60#literacy_nc c.school_low#literacy_nc c.cotton_suitability#literacy_nc ///
+    c.cotton_share_land1964#literacy_nc c.anti_black_county#literacy_nc ///
+    c.pro_black_county#literacy_nc c.rep_share_1964#literacy_nc ///
+    ibn.STATE, nocon robust cluster(judicial_divisions_id)
+di as text "Bernini Table 2 Col 4: theta = " %6.4f _b[black_share60_lit_nc] ///
+    "  cluster SE = " %6.4f _se[black_share60_lit_nc] "  N = " e(N)
+scalar se_bern_base = _se[black_share60_lit_nc]
+gen byte insamp = e(sample)
+
+* auxiliary outcomes, following the selection rules in DellaVigna et al. E.2:
+* all feasible package variables, excluding (i) ids/geography/design vars,
+* (ii) the outcome family, regressor family and their interactions, (iii) the
+* primary controls, (iv) >50% missing, (v) |corr|>0.8 with the outcome,
+* regressor, or any primary control. This yields exactly d = 60.
+local excluded county countycode FIPSTATE STATE geo judicial_divisions_id ///
+    literacy_nc SMD MIXED AL insamp
+local refs ch_ShareBl_AllOfficials black_share60_lit_nc black_share60 unemp60 ///
+    family_less_3000 pop60 school_low urbanB60 cotton_suitability ///
+    cotton_share_land1964 pro_black_county anti_black_county rep_share_1964
+local ylist
+qui ds, has(type numeric)
+foreach v in `r(varlist)' {
+    local skip = 0
+    if strpos(" `excluded' ", " `v' ") local skip = 1
+    if regexm("`v'", "^(ch_)?ShareBl_") local skip = 1
+    if regexm("`v'", "^diffshareblack") local skip = 1
+    if regexm("`v'", "^black_share") local skip = 1
+    if regexm("`v'", "_lit(_|$)") local skip = 1
+    if regexm("`v'", "^dist_lit") local skip = 1
+    if strpos(" `refs' ", " `v' ") local skip = 1
+    if "`v'"=="ln_rep_share_1964" local skip = 1
+    if `skip'==0 {
+        qui sum insamp, meanonly
+        local nin = r(sum)
+        qui count if missing(`v') & insamp
+        if r(N) < 0.5*`nin' {
+            local maxc = 0
+            foreach r of local refs {
+                qui corr `v' `r' if insamp
+                if abs(r(rho)) > `maxc' local maxc = abs(r(rho))
+            }
+            if `maxc' < 0.8 local ylist `ylist' `v'
+        }
+    }
+}
+local d : word count `ylist'
+di as text "auxiliary outcomes selected: `d'"
+
+sjlog using "$PPR/examples/berniniExample.tex", replace
+tmo, cmd(reg ch_ShareBl_AllOfficials black_share60_lit_nc black_share60 ///
+    c.urbanB60#literacy_nc c.unemp60#literacy_nc c.family_less_3000#literacy_nc ///
+    c.pop60#literacy_nc c.school_low#literacy_nc c.cotton_suitability#literacy_nc ///
+    c.cotton_share_land1964#literacy_nc c.anti_black_county#literacy_nc ///
+    c.pro_black_county#literacy_nc c.rep_share_1964#literacy_nc ///
+    ibn.STATE, nocon robust cluster(judicial_divisions_id)) ///
+    x(black_share60_lit_nc) ylist(`ylist') i(countycode) misslimit(0.5) ///
+    plothist plothistnbins(100) plotse file("figures/bernini")
+sjlog close, replace
+di as text "TMO/cluster ratio: " %6.3f e(tmo_se)/se_bern_base
+cap erase "$PPR/figures/bernini_dyad.dta"

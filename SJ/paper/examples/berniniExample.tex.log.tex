@@ -1,0 +1,39 @@
+. tmo, cmd(reg ch_ShareBl_AllOfficials black_share60_lit_nc black_share60 ///
+>     c.urbanB60\#literacy_nc c.unemp60\#literacy_nc c.family_less_3000\#literacy_
+> nc ///
+>     c.pop60\#literacy_nc c.school_low\#literacy_nc c.cotton_suitability\#literac
+> y_nc ///
+>     c.cotton_share_land1964\#literacy_nc c.anti_black_county\#literacy_nc ///
+>     c.pro_black_county\#literacy_nc c.rep_share_1964\#literacy_nc ///
+>     ibn.STATE, nocon robust cluster(judicial_divisions_id)) ///
+>     x(black_share60_lit_nc) ylist(`ylist') i(countycode) misslimit(0.5) ///
+>     plothist plothistnbins(100) plotse file("figures/bernini")
+(file {\bftt{figures/bernini_hist.png}} not found)
+file {\bftt{figures/bernini_hist.png}} written in PNG format
+Calculating TMO SE over threshold at 0.00
+Calculating TMO SE over threshold at 0.20
+Calculating TMO SE over threshold at 0.40
+Calculating TMO SE over threshold at 0.60
+Calculating TMO SE over threshold at 0.80
+Calculating TMO SE over threshold at 1.00
+file{\bftt{ figures/bernini_se_ratio_over_thres.pdf}} saved as PDF format
+file{\bftt{ figures/bernini_prop_above_thres.pdf}} saved as PDF format
+{\smallskip}
+Linear Regression with TMO                              Number of obs =    971
+                                                        R-squared     = 0.5162
+                                                        Adj R-squared = 0.5162
+                                                        Root MSE      = 5.1862
+{\smallskip}
+\HLI{13}{\TOPT}\HLI{64}
+c{\tytilde}lOfficials {\VBAR} Coefficient  Std. err.      t    P>|t|     [95\% conf. interval]
+\HLI{13}{\PLUS}\HLI{64}
+black_shar{\tytilde}c {\VBAR}   .1029901   .0513034     2.01   0.047     .0014997    .2044805
+\HLI{13}{\BOTT}\HLI{64}
+\HLI{79}
+                                                                               
+                                                   Optimal threshold      0.522
+                                            \% of off-diag in SE est.      1.632
+                              \% >= threshold (excl. clusters/Conley)      0.708
+                                                          \# outcomes     61.000
+                                                  Degrees of freedom     27.253
+\HLI{79}

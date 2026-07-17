@@ -25,6 +25,7 @@ global SJ   "$ROOT/SJ"
 global DAT  "$ROOT/example"
 global PPR  "$SJ/paper"
 global FIG  "$SJ/paper/figures"
+global TMP  "$SJ/temp"
 
 * Which tmo version to use. Both files define a program called -tmo-, so the
 * sjlog output always displays the command as tmo. NEVER load both in one
@@ -274,16 +275,28 @@ di as text "[contam]  D=" e(N_outcomes) " df=" %5.1f e(dof) " thr=" %5.3f e(thre
     " ratio=" %5.3f e(tmo_se)/se_ace_base
 
 *-------------------------------------------------------------------------------
-*--- (7) Validation: replicating DellaVigna et al.'s application to
-*    Bernini et al. (2023). All 60 auxiliary outcomes come from the paper's
-*    own replication package (Appendix E.2 of DellaVigna et al.); published
-*    targets: coef 0.10, orig SE 0.04, ratio 1.37, d=60, df=25.8,
-*    delta*=0.54, 0.70% of cross-cluster pairs kept.
+*--- (7) Step-by-step guide application: Bernini et al. (2023)
+*    Fully self-contained: all 60 auxiliary outcomes come from the paper's own
+*    replication package (companion paper, Appendix E.2). Published targets:
+*    coef 0.10, orig SE 0.04, d=60, df=25.8, delta*=0.54, 0.70% cross-cluster
+*    pairs, TMO ratio 1.37; Conley150 1.40 [9.0%], TMO+Conley 1.51 [9.6%].
 *-------------------------------------------------------------------------------
 use "$ROOT/supporting_material/Bernini et al (2023)/datasets/dataset_wide_1.dta", clear
 
-* baseline: Table 2 Column 4 of Bernini et al. (preferred spec); factor-variable
-* syntax replaces the original xi: prefix (identical estimates)
+* county centroids (the variable -county- holds the 5-digit FIPS as string)
+preserve
+use "$SJ/data/maps/cb_2018_us_county_20m.dta", clear
+destring GEOID, replace
+rename GEOID fips
+keep fips _CX _CY
+tempfile cent
+save `cent'
+restore
+gen long fips = real(county)
+merge 1:1 fips using `cent', keep(1 3) nogen
+
+* Step 1: baseline -- Table 2 Column 4 of Bernini et al. (preferred spec);
+* factor-variable syntax replaces the original xi: prefix (identical estimates)
 qui reg ch_ShareBl_AllOfficials black_share60_lit_nc black_share60 ///
     c.urbanB60#literacy_nc c.unemp60#literacy_nc c.family_less_3000#literacy_nc ///
     c.pop60#literacy_nc c.school_low#literacy_nc c.cotton_suitability#literacy_nc ///
@@ -295,17 +308,18 @@ di as text "Bernini Table 2 Col 4: theta = " %6.4f _b[black_share60_lit_nc] ///
 scalar se_bern_base = _se[black_share60_lit_nc]
 gen byte insamp = e(sample)
 
-* auxiliary outcomes, following the selection rules in DellaVigna et al. E.2:
+* Step 2: auxiliary outcomes, following the companion paper's E.2 rules:
 * all feasible package variables, excluding (i) ids/geography/design vars,
 * (ii) the outcome family, regressor family and their interactions, (iii) the
 * primary controls, (iv) >50% missing, (v) |corr|>0.8 with the outcome,
 * regressor, or any primary control. This yields exactly d = 60.
 local excluded county countycode FIPSTATE STATE geo judicial_divisions_id ///
-    literacy_nc SMD MIXED AL insamp
+    literacy_nc SMD MIXED AL insamp fips _CX _CY
 local refs ch_ShareBl_AllOfficials black_share60_lit_nc black_share60 unemp60 ///
     family_less_3000 pop60 school_low urbanB60 cotton_suitability ///
     cotton_share_land1964 pro_black_county anti_black_county rep_share_1964
 local ylist
+local dropped
 qui ds, has(type numeric)
 foreach v in `r(varlist)' {
     local skip = 0
@@ -328,12 +342,17 @@ foreach v in `r(varlist)' {
                 if abs(r(rho)) > `maxc' local maxc = abs(r(rho))
             }
             if `maxc' < 0.8 local ylist `ylist' `v'
+            else local dropped `dropped' `v'
         }
     }
 }
 local d : word count `ylist'
-di as text "auxiliary outcomes selected: `d'"
+di as text "auxiliary outcomes selected: `d'  (correlation screen removed: `dropped')"
 
+tempfile bernbase
+save `bernbase'
+
+* Step 3: run tmo augmenting the original judicial-division clustering
 sjlog using "$PPR/examples/berniniExample.tex", replace
 tmo, cmd(reg ch_ShareBl_AllOfficials black_share60_lit_nc black_share60 ///
     c.urbanB60#literacy_nc c.unemp60#literacy_nc c.family_less_3000#literacy_nc ///
@@ -341,8 +360,88 @@ tmo, cmd(reg ch_ShareBl_AllOfficials black_share60_lit_nc black_share60 ///
     c.cotton_share_land1964#literacy_nc c.anti_black_county#literacy_nc ///
     c.pro_black_county#literacy_nc c.rep_share_1964#literacy_nc ///
     ibn.STATE, nocon robust cluster(judicial_divisions_id)) ///
-    x(black_share60_lit_nc) ylist(`ylist') i(countycode) misslimit(0.5) ///
+    x(black_share60_lit_nc) ylist(`ylist') i(fips) misslimit(0.5) ///
     plothist plothistnbins(100) plotse file("figures/bernini")
 sjlog close, replace
+scalar thres_bern = e(threshold)
 di as text "TMO/cluster ratio: " %6.3f e(tmo_se)/se_bern_base
 cap erase "$PPR/figures/bernini_dyad.dta"
+
+* Steps 5-6: distance-based runs (Conley 150mi as in the companion paper) and
+* the pair-level file used for the predictors table
+use `bernbase', clear
+qui tmo, cmd(reg ch_ShareBl_AllOfficials black_share60_lit_nc black_share60 ///
+    c.urbanB60#literacy_nc c.unemp60#literacy_nc c.family_less_3000#literacy_nc ///
+    c.pop60#literacy_nc c.school_low#literacy_nc c.cotton_suitability#literacy_nc ///
+    c.cotton_share_land1964#literacy_nc c.anti_black_county#literacy_nc ///
+    c.pro_black_county#literacy_nc c.rep_share_1964#literacy_nc ///
+    ibn.STATE, nocon robust cluster(judicial_divisions_id)) ///
+    x(black_share60_lit_nc) ylist(`ylist') i(fips) misslimit(0.5) ///
+    lat(_CY) lon(_CX) distthreshold(150) miles savedyad file("$TMP/bern")
+di as text "[TMO+Conley150] ratio=" %6.3f e(tmo_se)/se_bern_base ///
+    " pct=" %6.3f e(pct_ge_thres)
+
+use `bernbase', clear
+qui tmo, cmd(reg ch_ShareBl_AllOfficials black_share60_lit_nc black_share60 ///
+    c.urbanB60#literacy_nc c.unemp60#literacy_nc c.family_less_3000#literacy_nc ///
+    c.pop60#literacy_nc c.school_low#literacy_nc c.cotton_suitability#literacy_nc ///
+    c.cotton_share_land1964#literacy_nc c.anti_black_county#literacy_nc ///
+    c.pro_black_county#literacy_nc c.rep_share_1964#literacy_nc ///
+    ibn.STATE, nocon robust cluster(judicial_divisions_id)) ///
+    x(black_share60_lit_nc) ylist(`ylist') i(fips) misslimit(0.5) ///
+    lat(_CY) lon(_CX) distthreshold(150) miles thresholdoff
+di as text "[Conley150 only] ratio=" %6.3f e(tmo_se)/se_bern_base
+
+* Step 5: predictors of the selected pairs (feeds the paper's table)
+preserve
+use `bernbase', clear
+keep fips STATE judicial_divisions_id pop60 family_less_3000 urbanB60
+qui gduplicates drop
+rename (fips STATE judicial_divisions_id pop60 family_less_3000 urbanB60) ///
+       (id1 st1 jd1 pop1 pov1 urb1)
+tempfile bc1
+save `bc1'
+rename (id1 st1 jd1 pop1 pov1 urb1) (id2 st2 jd2 pop2 pov2 urb2)
+tempfile bc2
+save `bc2'
+restore
+
+use "$TMP/bern_dyad.dta", clear
+keep if id1!=id2
+gen byte above = (abs(corr)>=thres_bern) & !missing(corr)
+merge m:1 id1 using `bc1', keep(3) nogen
+merge m:1 id2 using `bc2', keep(3) nogen
+gen byte near150 = dist<=150
+gen byte samest  = st1==st2
+gen byte samejd  = jd1==jd2
+foreach p in pop pov urb {
+    gen d`p' = abs(`p'1-`p'2)
+    qui _pctile d`p', p(10)
+    gen byte near`p' = d`p'<=r(r1) if !missing(d`p')
+}
+gen byte anyclose = near150|samest|samejd|nearpop|nearpov|nearurb
+di as text _n "Predictors of selected county pairs (vs all pairs):"
+foreach v in near150 samest samejd nearpop nearpov nearurb anyclose {
+    qui sum `v' if above
+    local pa = 100*r(mean)
+    qui sum `v'
+    di as text "  `v': " %5.1f `pa' "%  (all pairs: " %5.1f 100*r(mean) "%)"
+}
+
+* Step 7: sensitivity of the adjustment to the outcome collection
+use `bernbase', clear
+local yfam `ylist' pop50 urban50 family_less50_2000 school_low50 ///
+    familypovchange cotton_share_land1945 all_officials_1980
+local ycontam `ylist' black_share40 black_share50 diffshareblack60_50
+foreach variant in yfam ycontam {
+    use `bernbase', clear
+    qui tmo, cmd(reg ch_ShareBl_AllOfficials black_share60_lit_nc black_share60 ///
+        c.urbanB60#literacy_nc c.unemp60#literacy_nc c.family_less_3000#literacy_nc ///
+        c.pop60#literacy_nc c.school_low#literacy_nc c.cotton_suitability#literacy_nc ///
+        c.cotton_share_land1964#literacy_nc c.anti_black_county#literacy_nc ///
+        c.pro_black_county#literacy_nc c.rep_share_1964#literacy_nc ///
+        ibn.STATE, nocon robust cluster(judicial_divisions_id)) ///
+        x(black_share60_lit_nc) ylist(``variant'') i(fips) misslimit(0.5)
+    di as text "[`variant'] D=" e(N_outcomes) " df=" %5.1f e(dof) ///
+        " thr=" %5.3f e(threshold) " ratio=" %5.3f e(tmo_se)/se_bern_base
+}

@@ -6,9 +6,8 @@
 >     c.cotton_share_land1964\#literacy_nc c.anti_black_county\#literacy_nc ///
 >     c.pro_black_county\#literacy_nc c.rep_share_1964\#literacy_nc ///
 >     ibn.STATE, nocon robust cluster(judicial_divisions_id)) ///
->     x(black_share60_lit_nc) ylist(`ylist') i(countycode) misslimit(0.5) ///
+>     x(black_share60_lit_nc) ylist(`ylist') i(fips) misslimit(0.5) ///
 >     plothist plothistnbins(100) plotse file("figures/bernini")
-(file {\bftt{figures/bernini_hist.png}} not found)
 file {\bftt{figures/bernini_hist.png}} written in PNG format
 Calculating TMO SE over threshold at 0.00
 Calculating TMO SE over threshold at 0.20

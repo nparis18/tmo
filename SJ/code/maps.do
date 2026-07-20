@@ -292,5 +292,22 @@ geoplot (area counties scpc_kbin if `mainland' & tmoselS!=1, lwidth(none)
 
 graph export "$OUT/tmo_scpc.pdf", replace
 
+*-------------------------------------------------------------------------------
+*--- (8) Combined TMO + state clustering map
+*    Pairs entering the variance: the focal county's own state (cluster) plus
+*    the TMO-selected pairs from the same run as sections (4)-(5).
+*-------------------------------------------------------------------------------
+#delimit ;
+geoplot (area counties if `mainland' & STATEFP=="`focalST'" & tmoselS!=1,
+        color(ebblue) lwidth(none) label("Cluster (state)"))
+        (area counties if `mainland' & tmoselS==1, color(red) lwidth(none)
+        label("TMO pair"))
+        (label counties NAME if `focal_cond', color(black) size(vsmall))
+        (line states if `mainland', lwidth(vthin))
+        , project legend(pos(5));
+#delimit cr
+
+graph export "$OUT/cluster_tmo.pdf", replace
+
 * Clean up
 frame change default

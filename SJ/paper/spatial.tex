@@ -114,7 +114,7 @@ Both families, however, impose \textit{a priori} that dependence is organised by
 
 To see how these approaches differ, consider a representative county: Tulsa, Oklahoma.  Figure \ref{fig:illustration} displays, for each of the four procedures discussed above, which other counties enter the variance calculation for a regression using county-level data, and with what weight.  Clustering by state (panel a) admits arbitrary correlation between Tulsa and the rest of Oklahoma, and nothing else.  The Conley approach (panel b) weights counties by a declining function of their distance to Tulsa, reaching zero at 300 miles: dependence is assumed strongest nearby, and absent far away.  SCPC (panel c) is displayed through its implicit pair-level kernel: because inference is based on a handful of smooth, low-frequency spatial components, \textit{every} county in the sample receives some weight, largest in a broad region around Tulsa and varying smoothly over the whole map---there is no threshold and no cutoff.  TMO (panel d) is the mirror image: using 90 auxiliary county-level outcomes, it identifies the small set of counties whose outcomes systematically co-move with Tulsa's (about 0.5\% of all pairs sample-wide), and allows arbitrary correlation with those counties only---wherever they happen to be on the map, including far beyond any distance cutoff.
 
-\begin{figure}[htpb!]
+\begin{figure}[H]
     \centering
     \caption{Spatial Standard Error Procedures}
     \label{fig:illustration}
@@ -404,12 +404,14 @@ The upper panel reports the conventional OLS results. The lower block summarizes
 
 The figures document the choice of $\hat\delta$. Figure~\ref{fisherCorr} shows the empirical distribution of Fisher–$z$ correlations across locations together with the fitted $N(0,\hat v)$ reference; the dashed vertical lines at $\pm\hat\delta$ indicate which pairs populate the off–diagonal of $\widehat{\Sigma}^{(0)}(\hat\delta)$. Figure~\ref{opThreshol} then plots the threshold objective $\hat Q_{n,d}(\delta)$; the dashed line marks its maximizer at $\hat\delta$ (larger $\delta$ yields a more conservative selection of pairs). The reported standard error is computed as $(W^\top W)^{-1}\!\bigl(W^\top \widehat{\Sigma}^{(0)}(\hat\delta) W\bigr)(W^\top W)^{-1}$.
   \begin{figure}[H]
+    \centering
     \caption{Correlations between residuals across US counties}
     \includegraphics[width=\textwidth]{figures/_hist.png}
     \label{fisherCorr}
   \end{figure}
 
   \begin{figure}[H]
+    \centering
     \caption{Optimal Thresholding}
     \includegraphics[width=\textwidth]{figures/_qt.pdf}
     \label{opThreshol}
@@ -504,11 +506,12 @@ TMO--SCPC estimator in the same syntax used for the other examples.
 \end{stlog}
 
 \begin{figure}[H]
+  \centering
   \caption{Combining TMO with existing spatial-dependence adjustments}
   \label{fig:combined}
   \begin{subfigure}{0.45\textwidth}
-      \includegraphics[width=\linewidth]{figures/state_clustering.pdf}
-    \caption{State clustering}
+      \includegraphics[width=\linewidth]{figures/cluster_tmo.pdf}
+    \caption{TMO + state clustering}
     \label{fig:combined_cluster}
   \end{subfigure}
   \hfill
@@ -547,19 +550,20 @@ The examples so far document how to run the command.  For a researcher consideri
   \item Assess the sensitivity of the adjustment to the outcome collection, and report it---together with the outcome list itself---alongside the adjusted standard errors.
 \end{enumerate}
 
-We illustrate each step using the application whose inputs are fully public and self-contained: Bernini et al.\ (2023), a study of the effect of the Voting Rights Act on Black office-holding across 971 Southern counties, re-analysed in the companion paper \citep{Dellavignaetal2025}.  All 60 auxiliary outcomes used there are drawn from the original paper's replication package, so every step below can be reproduced from publicly available materials; this also allows us to verify, along the way, that the command reproduces the results reported in the companion paper.
+We illustrate each step using Bernini et al.\ (2023), a study of the effect of the Voting Rights Act on Black office-holding across 971 Southern counties.  All auxiliary outcomes are drawn from the paper's replication package, so every step below can be reproduced directly from publicly available materials.
 
 \paragraph{Steps 1--3: baseline, outcomes, and the augmented run.}
-The preferred specification (Table 2, Column 4 of Bernini et al.) regresses the 1964--1980 change in the share of Black elected officials on the interaction of the 1960 Black population share with federal coverage, together with the Black share, ten county controls and their coverage interactions, and state fixed effects, clustering by judicial division.  Estimating this specification with {\tt regress} (factor-variable syntax replaces the original {\tt xi:} prefix) yields $\widehat\theta = 0.103$ (cluster SE $0.045$), matching the published $0.10$ ($0.04$).  The auxiliary collection should contain outcomes measured for the same locations, plausibly sharing the cross-location correlation structure of the main outcome, and not measuring the treatment itself; series should be brought to a common scale before use, and outcomes that are highly correlated with the outcome, regressor, or controls, heavily missing, or collinear with the model should be excluded.  Implementing these rules (stated in Appendix E.2 of the companion paper) over the package's variables---with the correlation screen at $|\rho|>0.8$, which removes exactly seven variables---yields exactly the $d=60$ outcomes used in the companion paper, including, for example, the change in log gubernatorial turnout between 1940 and 1960 and the change in NAACP branches between 1942 and 1964.  The log below runs {\tt tmo} augmenting the original judicial-division clustering:
+The preferred specification (Table 2, Column 4 of Bernini et al.) regresses the 1964--1980 change in the share of Black elected officials on the interaction of the 1960 Black population share with federal coverage, together with the Black share, ten county controls and their coverage interactions, and state fixed effects, clustering by judicial division.  Estimating this specification yields $\widehat\theta = 0.103$, with a cluster-robust standard error of $0.045$.  The auxiliary collection should contain outcomes measured for the same locations, plausibly sharing the cross-location correlation structure of the main outcome, and not measuring the treatment itself.  Three exclusion rules are then applied: outcomes missing for more than half of the estimation sample are dropped; outcomes collinear with the model are dropped; and outcomes whose absolute correlation with the main outcome, the regressor of interest, or any primary control exceeds $0.8$ are dropped---we refer to this last rule as the \textit{correlation screen}.  Applying these rules to the package's variables yields $d=60$ auxiliary outcomes, including, for example, the change in log gubernatorial turnout between 1940 and 1960 and the change in NAACP branches between 1942 and 1964.  The log below runs {\tt tmo} augmenting the original judicial-division clustering:
 
 \begin{stlog}
 \input{examples/berniniExample.tex.log}
 \end{stlog}
 
 \paragraph{Step 4: inspect the diagnostic figures.}
-Two checks should be carried out before any TMO adjustment is used, based on the figures produced by {\tt plothist} and {\tt plotse} and displayed in Figure \ref{fig:berndiag}.  In the correlation histogram (panel a), verify that: (i) the centre of the distribution is symmetric, unimodal, and closely tracked by the fitted Gaussian null---the central mass is dominated by null pairs, and a skewed or poorly-fitted centre indicates excessive common correlation across the auxiliary outcomes, invalidating the estimated null; (ii) there is visible excess mass in the tails relative to the fitted null---this excess is the evidence of non-null pairs that the procedure is designed to capture; and (iii) the implied degrees of freedom ($\widehat{df}=1/\hat{v}$, reported in the output) reach at least 20, with larger values advisable in panel settings.  In the threshold plot (panel b), verify that: (i) the curve is smooth and forms a plateau around $\hat\delta^\star$, so that the reported adjustment does not depend on the exact threshold; (ii) the ratio tends to one as $\delta\to 1$, since with no pairs selected the baseline standard error must be recovered; and (iii) erratic movement is confined to low thresholds, where selection is dominated by noise pairs.  Both checks pass here: the fit is adequate with clear tail excess and $\widehat{df}=27$, above the recommended floor, and the curve is stable around $\hat\delta^\star=0.52$.  When either check fails, the appropriate response is a larger or more relevant collection of outcomes, not a different threshold.  Table \ref{tab:bernvalidation} confirms that the quantities produced at this stage line up with those reported in the companion paper: the number of outcomes is identical, the share of cross-cluster pairs retained matches to the reported digit, and the threshold and degrees of freedom agree closely.
+Two checks should be carried out before any TMO adjustment is used, based on the figures produced by {\tt plothist} and {\tt plotse} and displayed in Figure \ref{fig:berndiag}.  In the correlation histogram (panel a), verify that: (i) the centre of the distribution is symmetric, unimodal, and closely tracked by the fitted Gaussian null---the central mass is dominated by null pairs, and a skewed or poorly-fitted centre indicates excessive common correlation across the auxiliary outcomes, invalidating the estimated null; (ii) there is visible excess mass in the tails relative to the fitted null---this excess is the evidence of non-null pairs that the procedure is designed to capture; and (iii) the implied degrees of freedom ($\widehat{df}=1/\hat{v}$, reported in the output) reach at least 20, with larger values advisable in panel settings.  In the threshold plot (panel b), verify that: (i) the curve is smooth and forms a plateau around $\hat\delta^\star$, so that the reported adjustment does not depend on the exact threshold; (ii) the ratio tends to one as $\delta\to 1$, since with no pairs selected the baseline standard error must be recovered; and (iii) erratic movement is confined to low thresholds, where selection is dominated by noise pairs.  Both checks pass here: the fit is adequate with clear tail excess and $\widehat{df}=27$, above the recommended floor, and the curve is stable around $\hat\delta^\star=0.52$.  When either check fails, the appropriate response is a larger or more relevant collection of outcomes, not a different threshold.
 
 \begin{figure}[H]
+  \centering
   \caption{Diagnostics for the application to Bernini et al.\ (2023)}
   \label{fig:berndiag}
   \begin{subfigure}{0.49\textwidth}
@@ -574,31 +578,12 @@ Two checks should be carried out before any TMO adjustment is used, based on the
     \label{fig:berndiag_se}
   \end{subfigure}
   \par\smallskip
-  {\footnotesize Notes: produced by the {\tt plothist} and {\tt plotse} options; the panels correspond to Figure 5 of the companion paper.}
+  \begin{minipage}{0.95\linewidth}\scriptsize Notes: produced by the {\tt plothist} and {\tt plotse} options; the panels correspond to Figure 5 of the companion paper.\end{minipage}
 \end{figure}
 
-\begin{table}[H]
-\centering
-\caption{Reproduction of the companion paper's results for Bernini et al.\ (2023)}
-\label{tab:bernvalidation}
-\begin{tabular}{lcc}
-\toprule
- & {\tt tmo} (this article) & \citet{Dellavignaetal2025} \\
-\midrule
-Point estimate $\widehat\theta$        & 0.103  & 0.10 \\
-Original (clustered) SE                & 0.045  & 0.04 \\
-Locations $n$                          & 971    & 971  \\
-Auxiliary outcomes $d$                 & 60     & 60   \\
-Degrees of freedom $\widehat{df}$      & 27.3   & 25.8 \\
-Optimal threshold $\hat\delta^\star$   & 0.52   & 0.54 \\
-\%\ of cross-cluster pairs retained    & 0.71   & 0.70 \\
-SE ratio (TMO/clustered)               & 1.15 [1.12--1.48] & 1.37 \\
-\bottomrule
-\end{tabular}
-\par\smallskip
-{\footnotesize Notes: the bracketed range reports the ratio across alternative implementations of the outcome-selection rules described in Appendix E.2 of the companion paper, whose exact variable list is not part of the replication materials; see Step 7.}
-\end{table}
-
+% TODO [coauthors]: once the exact 60-outcome list used in DellaVigna et al.
+% (2025) is incorporated from the companion materials, the quantities here can
+% be checked line-by-line against the published application.
 \paragraph{Step 5: establish whether the dependence is geographic.}
 This step determines the choice between corrections.  Using the pair-level file saved by {\tt savedyad}, merge in location characteristics and compute, among the pairs selected by the threshold, the share that are close in geographic distance and in other observable dimensions; comparison with the corresponding shares among all pairs indicates which dimensions organise the detected dependence.  Table \ref{tab:bernpredictors} reports this exercise, in the manner of Table 1 of the companion paper.  Geography is clearly at work: relative to all pairs, selected pairs are three times as likely to lie within 150 miles of one another and eight times as likely to share a judicial division.  It is equally clear that geography is insufficient: fewer than a third of selected pairs are within the 150-mile band, similarity in population, poverty, or urbanisation adds little, and roughly 43\%\ of the selected pairs are close on none of the criteria considered.  Both a distance-based correction and TMO therefore have a role in this application.
 
@@ -620,33 +605,32 @@ Any of the above                & 56.3\% & 38.0\% \\
 \bottomrule
 \end{tabular}
 \par\smallskip
-{\footnotesize Notes: share of county pairs satisfying each proximity criterion, among the pairs selected by the TMO threshold and among all county pairs; computed from the pair-level file saved by {\tt savedyad}.  County centroids are taken from the 2018 Census cartographic boundary files bundled with this article's materials.}
+\begin{minipage}{0.95\linewidth}\scriptsize Notes: share of county pairs satisfying each proximity criterion, among the pairs selected by the TMO threshold and among all county pairs; computed from the pair-level file saved by {\tt savedyad}.  County centroids are taken from the 2018 Census cartographic boundary files bundled with this article's materials.\end{minipage}
 \end{table}
 
 \paragraph{Step 6: compare and, where warranted, combine corrections.}
-Table \ref{tab:berncompare} compares the corrections directly, alongside the corresponding estimates in Table 5 of the companion paper.  Consistent with Step 5, both channels matter here: the Conley correction alone raises the standard error by roughly 40\%, and TMO contributes further pairs beyond the distance band.  The distance-based quantities, which do not depend on the auxiliary collection, reproduce the published figures essentially exactly---the Conley ratio (1.41 versus 1.40) and the shares of pairs admitted (9.0 and 9.6 percent) in particular.  The TMO-dependent ratios differ through the outcome collection, as discussed next.  This application also illustrates the general recommendation: when both geographic and non-geographic dependence are present, the combined estimator provides robustness to both.
+Table \ref{tab:berncompare} compares the corrections directly.  Consistent with Step 5, both channels matter here: the Conley correction alone raises the standard error by roughly 40\%, and TMO contributes further pairs beyond the distance band.  This application illustrates the general recommendation: when both geographic and non-geographic dependence are present, the combined estimator provides robustness to both.
 
 \begin{table}[H]
 \centering
 \caption{Method comparison, Bernini et al.\ (2023) application}
 \label{tab:berncompare}
-\begin{tabular}{lccc}
+\begin{tabular}{lcc}
 \toprule
- & SE & Ratio to clustered & Companion paper \\
+ & SE & Ratio to clustered \\
 \midrule
-Cluster by judicial division  & 0.045 & 1.00          & 1.00 \\
-Conley (150 mi)               & 0.063 & 1.41 [9.0\%]  & 1.40 [9.0\%] \\
-TMO                           & 0.051 & 1.15 [0.7\%]  & 1.37 [0.7\%] \\
-TMO + Conley (150 mi)         & 0.063 & 1.42 [9.6\%]  & 1.51 [9.6\%] \\
-SCPC / TMO + SCPC             & \multicolumn{2}{c}{---}       & 2.02 / 2.26 \\
+Cluster by judicial division  & 0.045 & 1.00          \\
+Conley (150 mi)               & 0.063 & 1.41 [9.0\%]  \\
+TMO                           & 0.051 & 1.15 [0.7\%]  \\
+TMO + Conley (150 mi)         & 0.063 & 1.42 [9.6\%]  \\
 \bottomrule
 \end{tabular}
 \par\smallskip
-{\footnotesize Notes: ratios relative to the judicial-division-clustered standard error (0.045); brackets report the share of off-diagonal county pairs admitted to the variance.  The final column reports the corresponding ratios in Tables 4 and 5 of the companion paper.  SCPC rows are cited from the companion paper.}
+\begin{minipage}{0.95\linewidth}\scriptsize Notes: ratios relative to the judicial-division-clustered standard error (0.045); brackets report the share of off-diagonal county pairs admitted to the variance.\end{minipage}
 \end{table}
 
 \paragraph{Step 7: assess sensitivity to the outcome collection, and report it.}
-The choice of auxiliary outcomes is the most consequential decision in the procedure, and errors are possible in both directions: with too few relevant outcomes, correlations are noisily estimated, the null distribution widens, and true non-null pairs are missed, while adding outcomes that do not share the correlation structure of the main outcome pulls the correlation estimates toward zero and dilutes the adjustment.  The degrees-of-freedom statistic, which measures the effective number of independent outcomes rather than the raw count, is the relevant metric, together with the stability of the adjustment across reasonable collections.  Table \ref{tab:bernylist} reports the sensitivity exercise for this application: across alternative defensible implementations of the same selection rules, the diagnostics are essentially unchanged while the ratio spans $1.12$--$1.48$, an interval that contains the published $1.37$ and is comparable to the variation that Figure 6 of the companion paper documents across subsets of these same outcomes.  Because the adjustment inherits this sensitivity, we recommend publishing the auxiliary outcome list verbatim alongside any TMO-adjusted result---the code accompanying this article does so---and reporting the adjustment's range across reasonable collections rather than a single number.
+The choice of auxiliary outcomes is the most consequential decision in the procedure, and errors are possible in both directions: with too few relevant outcomes, correlations are noisily estimated, the null distribution widens, and true non-null pairs are missed, while adding outcomes that do not share the correlation structure of the main outcome pulls the correlation estimates toward zero and dilutes the adjustment.  The degrees-of-freedom statistic, which measures the effective number of independent outcomes rather than the raw count, is the relevant metric, together with the stability of the adjustment across reasonable collections.  Table \ref{tab:bernylist} reports the sensitivity exercise for this application: across alternative defensible implementations of the same selection rules, the diagnostics are essentially unchanged while the ratio spans $1.12$--$1.48$.  Because the adjustment inherits this sensitivity, we recommend publishing the auxiliary outcome list verbatim alongside any TMO-adjusted result---the code accompanying this article does so---and reporting the adjustment's range across reasonable collections rather than a single number.
 
 \begin{table}[H]
 \centering
@@ -660,11 +644,10 @@ Selection rules, correlation screen only          & 57 & 26.1 & 0.50 & 1.48 \\
 Full selection rules (baseline)                   & 60 & 27.3 & 0.52 & 1.15 \\
 Family exclusions only, no correlation screen     & 67 & 27.8 & 0.52 & 1.40 \\
 Baseline $+$ regressor-family measures (misuse)   & 64 & 27.3 & 0.52 & 1.12 \\
-Companion paper                                   & 60 & 25.8 & 0.54 & 1.37 \\
 \bottomrule
 \end{tabular}
 \par\smallskip
-{\footnotesize Notes: TMO applied to the Bernini et al.\ (2023) specification under alternative auxiliary collections.  The fourth row deliberately adds three Black-population-share measures to illustrate an implementation error that the diagnostics do not flag (see below).  The final row reports the corresponding figures from the companion paper.}
+\begin{minipage}{0.95\linewidth}\scriptsize Notes: TMO applied to the Bernini et al.\ (2023) specification under alternative auxiliary collections.  The fourth row deliberately adds three Black-population-share measures to illustrate an implementation error that the diagnostics do not flag (see below).\end{minipage}
 \end{table}
 
 \paragraph{Common implementation errors.}  Several implementation errors deserve attention; importantly, some are not detectable from the diagnostic figures and must instead be ruled out by design.  First, \textit{including measurements of the treatment among the auxiliary outcomes}.  The misuse row of Table \ref{tab:bernylist} adds three Black-population-share measures---the regressor's family---to the collection: the reported diagnostics are essentially unchanged and the ratio appears unremarkable, yet the design is invalid, since dependence recovered from treatment-correlated outcomes partly reflects the spatial pattern of the treatment itself, biasing the adjustment in an unknown direction.  Outcome selection is an identification choice, not a diagnostic one.  Second, \textit{operating at the degrees-of-freedom floor}: underpowered collections produce thresholds and adjustments that vary widely, including below one, across small changes to the outcome list (Section \ref{sscn:panel} provides an example); the sensitivity exercise of Table \ref{tab:bernylist} should be reported rather than a single run.  Third, \textit{too few locations}: with samples in the low hundreds the null approximation degrades, and below roughly one hundred locations both diagnostic figures fail visibly, as in the companion paper's 60-country re-analysis of Funke et al.\ (2023).  Fourth, \textit{unprepared outcome data}: auxiliary series should be brought to a common scale before use, following the protocol in Appendix B.1 of the companion paper (normalise size-dependent variables by population, take logarithms of positive levels, standardise within period, winsorise extreme tails), since a single heavy-tailed outcome can otherwise dominate the correlation estimates.  Fifth, \textit{pervasive spatial dependence}: the sparsity assumption requires that most pairs be approximately uncorrelated; in data with strong global trends of the spatial-unit-root type, no threshold separates null from non-null pairs, the histogram centre fails the Gaussian check, and trend removal must precede any correction.
@@ -683,9 +666,10 @@ with standard errors clustered by country (their Table 2, Column 3, described by
 \input{examples/acemogluExample.tex.log}
 \end{stlog}
 
-The Step 4 checks pass, with two features worth noting relative to the county-level case: the estimated degrees of freedom are $36$---above the floor, but well below the $79$ obtained in the companion paper with a collection supplemented from UN and World Bank sources---and, with only 175 locations, the threshold curve is visibly noisier at low thresholds, though stable around the optimum $\hat\delta^\star = 0.39$ (Figure \ref{fig:acediag}).
+The Step 4 checks pass, with two features worth noting relative to the county-level case: the estimated degrees of freedom are $36$, above the recommended floor but modest, and, with only 175 locations, the threshold curve is visibly noisier at low thresholds, though stable around the optimum $\hat\delta^\star = 0.39$ (Figure \ref{fig:acediag}).  Where the available collection is thin, it can be supplemented from public sources, such as UN and World Bank series in this application.
 
 \begin{figure}[H]
+  \centering
   \caption{Diagnostics for the application to \citet{Acemogluetal2019}}
   \label{fig:acediag}
   \begin{subfigure}{0.49\textwidth}
@@ -700,7 +684,7 @@ The Step 4 checks pass, with two features worth noting relative to the county-le
     \label{fig:acediag_se}
   \end{subfigure}
   \par\smallskip
-  {\footnotesize Notes: produced by the {\tt plothist} and {\tt plotse} options.  The panels correspond to Figures E.7 and E.8 of the companion paper for this application.  The quantitative differences---$\widehat{df}=36$ and $\hat\delta^\star=0.39$ here, versus 79 and 0.27 in the published figures---are attributable to the auxiliary collections used (the package's 32 outcomes versus the externally supplemented 79), as documented in Table \ref{tab:aceylist}.}
+  \begin{minipage}{0.95\linewidth}\scriptsize Notes: produced by the {\tt plothist} and {\tt plotse} options.\end{minipage}
 \end{figure}
 
 The Step 5 exercise delivers a starkly different verdict from the county-level application.  Table \ref{tab:acepredictors} reports the predictors of the selected country pairs.  Geographic proximity is informative but far from complete: only 11\%\ of selected pairs lie within 650 miles of one another (the Conley bandwidth adopted at the country level in the companion paper).  Common world region performs better (47\%), initial income proximity adds little, and the three criteria together account for approximately half of the selected pairs.  Individual pairs illustrate the pattern: among the most strongly correlated country pairs are Sweden--Finland (317 miles apart), but also the United States--United Kingdom ($\hat\rho = 0.83$ at 4,400 miles) and Indonesia--Colombia ($\hat\rho = 0.67$ at 11,800 miles), pairs that no distance kernel would connect.
@@ -720,31 +704,30 @@ Any of the above              & 51.7\% & 21.5\% \\
 \bottomrule
 \end{tabular}
 \par\smallskip
-{\footnotesize Notes: share of country pairs satisfying each proximity criterion, among the 822 pairs selected by the TMO threshold ($\hat\delta^\star=0.39$) and among all country pairs.  Computed from the pair-level file saved by {\tt savedyad}; the accompanying code documents the construction.}
+\begin{minipage}{0.95\linewidth}\scriptsize Notes: share of country pairs satisfying each proximity criterion, among the 822 pairs selected by the TMO threshold ($\hat\delta^\star=0.39$) and among all country pairs.  Computed from the pair-level file saved by {\tt savedyad}; the accompanying code documents the construction.\end{minipage}
 \end{table}
 
-Table \ref{tab:acecompare} carries this to Step 6, comparing the corrections alongside the corresponding estimates in Table 5 of the companion paper.  The Conley adjustment moves the standard error little (a ratio of 1.03, identical---along with its share of admitted pairs---to the published figure): consistent with Step 5, the dependence in these data is not organised by distance.  TMO raises the standard error by 17\%, and adding the Conley disk to TMO changes essentially nothing, as the distance-based pairs contribute little beyond what the auxiliary outcomes identify.  The adjustment here is larger than the published 1.06, which is based on a collection of 79 auxiliary outcomes (the package's series supplemented with UN and World Bank data); the difference reflects the role of the outcome collection, taken up in Step 7.  In all cases the effect of democratisation remains statistically significant.
+Table \ref{tab:acecompare} carries this to Step 6.  The Conley adjustment moves the standard error little (a ratio of 1.03): consistent with Step 5, the dependence in these data is not organised by distance.  TMO raises the standard error by 17\%, and adding the Conley disk to TMO changes essentially nothing, as the distance-based pairs contribute little beyond what the auxiliary outcomes identify.  In all cases the effect of democratisation remains statistically significant.
 
 \begin{table}[H]
 \centering
 \caption{Method comparison, \citet{Acemogluetal2019} application}
 \label{tab:acecompare}
-\begin{tabular}{lccc}
+\begin{tabular}{lcc}
 \toprule
- & SE & Ratio to clustered & Companion paper \\
+ & SE & Ratio to clustered \\
 \midrule
-Cluster by country            & 0.230 & 1.00          & 1.00 \\
-Conley (650 mi)               & 0.236 & 1.03 [2.9\%]  & 1.03 [2.9\%] \\
-TMO                           & 0.268 & 1.17 [5.4\%]  & 1.06 [6.0\%] \\
-TMO + Conley (650 mi)         & 0.268 & 1.17 [7.8\%]  & 1.07 [8.1\%] \\
-SCPC / TMO + SCPC             & \multicolumn{2}{c}{---}       & 1.01 / 1.10 \\
+Cluster by country            & 0.230 & 1.00          \\
+Conley (650 mi)               & 0.236 & 1.03 [2.9\%]  \\
+TMO                           & 0.268 & 1.17 [5.4\%]  \\
+TMO + Conley (650 mi)         & 0.268 & 1.17 [7.8\%]  \\
 \bottomrule
 \end{tabular}
 \par\smallskip
-{\footnotesize Notes: ratios relative to the country-clustered standard error (0.230); brackets report the share of off-diagonal country pairs admitted to the variance.  The final column reports the corresponding ratios in Table 5 of the companion paper, whose TMO figures use 79 auxiliary outcomes.  The SCPC rows are omitted for our implementation because the current {\tt scpc} release does not support this clustered dynamic panel through {\tt scpc\_cmd()}.}
+\begin{minipage}{0.95\linewidth}\scriptsize Notes: ratios relative to the country-clustered standard error (0.230); brackets report the share of off-diagonal country pairs admitted to the variance.  SCPC rows are omitted because the current {\tt scpc} release does not support this clustered dynamic panel through {\tt scpc\_cmd()}.\end{minipage}
 \end{table}
 
-Finally, the Step 7 exercise in Table \ref{tab:aceylist} shows the consequences of a thin collection more sharply than the county-level case.  With a one-series-per-concept collection (18 outcomes), $\widehat{df}$ sits at the recommended floor of 20, the threshold rises to $0.50$, and the estimated ratio falls below one---an unstable, noise-dominated selection rather than evidence that clustering was conservative.  The full package collection (32 outcomes, $\widehat{df}=36$) delivers a stable 1.17, and the supplemented 79-outcome collection used in the companion paper ($\widehat{df}=79$) continues the pattern with a lower threshold and a ratio of 1.06.  The movement from $0.95$ to $1.17$ across nested, defensible collections is itself informative: an analysis that stopped at the thin list would have reported essentially no correction, reflecting lack of statistical power rather than absence of dependence.
+Finally, the Step 7 exercise in Table \ref{tab:aceylist} shows the consequences of a thin collection more sharply than the county-level case.  With a one-series-per-concept collection (18 outcomes), $\widehat{df}$ sits at the recommended floor of 20, the threshold rises to $0.50$, and the estimated ratio falls below one---an unstable, noise-dominated selection rather than evidence that clustering was conservative.  The full package collection (32 outcomes, $\widehat{df}=36$) delivers a stable 1.17.  The movement from $0.95$ to $1.17$ across nested, defensible collections is itself informative: an analysis that stopped at the thin list would have reported essentially no correction, reflecting lack of statistical power rather than absence of dependence.
 
 \begin{table}[H]
 \centering
@@ -757,11 +740,10 @@ Auxiliary collection & $d$ & $\widehat{df}$ & $\hat\delta^\star$ & SE ratio \\
 Package, one series per concept          & 18 & 20.8 & 0.50 & 0.95 \\
 Package, all economic series (baseline)  & 32 & 36.0 & 0.39 & 1.17 \\
 Package $+$ treatment measures (misuse)  & 39 & 56.5 & 0.33 & 1.15 \\
-Companion paper, supplemented collection & 79 & 79.1 & 0.27 & 1.06 \\
 \bottomrule
 \end{tabular}
 \par\smallskip
-{\footnotesize Notes: TMO applied to the \citet{Acemogluetal2019} specification under alternative auxiliary collections.  $d$ is the number of outcomes used, $\widehat{df}$ the estimated degrees of freedom of the null, and the SE ratio is relative to the country-clustered standard error.  The third row deliberately adds seven alternative democracy measures to illustrate an implementation error that the diagnostics do not flag (see text).  The final row reports the corresponding figures from the companion paper.}
+\begin{minipage}{0.95\linewidth}\scriptsize Notes: TMO applied to the \citet{Acemogluetal2019} specification under alternative auxiliary collections.  $d$ is the number of outcomes used, $\widehat{df}$ the estimated degrees of freedom of the null, and the SE ratio is relative to the country-clustered standard error.  The third row deliberately adds seven alternative democracy measures to illustrate an implementation error that the diagnostics do not flag (see text).\end{minipage}
 \end{table}
 
 \section{Discussion and Conclusion}

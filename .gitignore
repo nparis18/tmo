@@ -21,3 +21,8 @@ SJ/temp/log/
 !SJ/paper/examples/*.log.tex
 *.pp
 SJ/temp/
+
+# Replication packages live once in ~/Dropbox/literature (symlinked here);
+# only the README documenting the scheme is tracked
+supporting_material/*
+!supporting_material/README.md

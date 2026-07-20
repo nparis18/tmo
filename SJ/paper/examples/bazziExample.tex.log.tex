@@ -1,0 +1,34 @@
+. tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_00_2) ///
+>     `ctrl', cluster(km_grid_cel_code) a(statefip dummy_trunmig_hat1_00_2)) //
+> /
+>     x(pct_Southerners_white) ylist(`ylist') i(fips) misslimit(0.5) ///
+>     plothist plothistnbins(100) plotse file("figures/bazzi")
+(file {\bftt{figures/bazzi_hist.png}} not found)
+file {\bftt{figures/bazzi_hist.png}} written in PNG format
+Calculating TMO SE over threshold at 0.00
+Calculating TMO SE over threshold at 0.20
+Calculating TMO SE over threshold at 0.40
+Calculating TMO SE over threshold at 0.60
+Calculating TMO SE over threshold at 0.80
+Calculating TMO SE over threshold at 1.00
+file{\bftt{ figures/bazzi_se_ratio_over_thres.pdf}} saved as PDF format
+file{\bftt{ figures/bazzi_prop_above_thres.pdf}} saved as PDF format
+{\smallskip}
+Linear Regression with TMO                              Number of obs =  1,886
+                                                        R-squared     = 0.4131
+                                                        Adj R-squared = 0.4131
+                                                        Root MSE      = 8.7062
+{\smallskip}
+\HLI{13}{\TOPT}\HLI{64}
+ Trump_share {\VBAR} Coefficient  Std. err.      t    P>|t|     [95\% conf. interval]
+\HLI{13}{\PLUS}\HLI{64}
+pct_Southe{\tytilde}e {\VBAR}   1.025748   .2086485     4.92   0.000     .6150292    1.436467
+\HLI{13}{\BOTT}\HLI{64}
+\HLI{79}
+                                                                               
+                                                   Optimal threshold      0.506
+                                            \% of off-diag in SE est.      2.449
+                              \% >= threshold (excl. clusters/Conley)      1.797
+                                                          \# outcomes     86.000
+                                                  Degrees of freedom     25.940
+\HLI{79}

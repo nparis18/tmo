@@ -298,7 +298,9 @@ graph export "$OUT/tmo_scpc.pdf", replace
 *    the TMO-selected pairs from the same run as sections (4)-(5).
 *-------------------------------------------------------------------------------
 #delimit ;
-geoplot (area counties if `mainland' & STATEFP=="`focalST'" & tmoselS!=1,
+geoplot (area counties if `mainland', color(gs14) lwidth(none)
+        label("No weight"))
+        (area counties if `mainland' & STATEFP=="`focalST'" & tmoselS!=1,
         color(ebblue) lwidth(none) label("Cluster (state)"))
         (area counties if `mainland' & tmoselS==1, color(red) lwidth(none)
         label("TMO pair"))

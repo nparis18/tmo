@@ -158,121 +158,207 @@ tmo, cmd(regress PIN_persincpc_d EDU_college_d, r) ///
 sjlog close, replace
 
 *-------------------------------------------------------------------------------
-*--- (6) Real-data application: Acemoglu et al. (2019), democracy and growth
-*    A diagnostic guide for WHEN to use tmo. Replicates Table 2 Column 3
-*    (preferred spec) and runs the diagnostic battery of DellaVigna et al.:
-*    correlation histogram + null fit, SE across thresholds, predictors of
-*    highly-correlated country pairs, and the method-comparison table.
-*    Practical notes:
-*      - lags are pre-computed as variables (ts-operators inside cmd() break
-*        once tmo subsets to the estimation sample of an unbalanced panel)
-*      - the regressor of interest (dem) is listed immediately after the
-*        dependent variable in cmd()
+*--- (6) Second application: IV -- Bazzi et al. (2023), Southern white
+*    migration and the vote for Trump. Fully self-contained: the dataset is
+*    built from the paper's replication package (see README_generated.txt next
+*    to the .dta) and all auxiliary outcomes come from that package.
+*    Replicates Table 2 Panel A Column 4 (the main specification, per the
+*    companion paper): shift-share IV, baseline controls, state and
+*    truncation-dummy FEs, SEs clustered by 60x60-mile grid cell.
+*    Published values: coef 1.03, cluster SE 0.17, n = 1,886.
 *-------------------------------------------------------------------------------
-use "$ROOT/supporting_material/replication_files_ddcg/DDCGdata_final.dta", clear
-xtset wbcode2 year
-forval j = 1/4 {
-    gen ly`j' = l`j'.y
+use "$SJ/data/replication/Republican_vote_data.dta", clear
+keep if year==1940
+
+local ctrl lnpopdens_hist pct_mfgempl pct_unemploy pct_laborforce pct_btot ///
+    pct_popmexico pct_popgerman pct_popcanada pct_popireland pct_popitaly ///
+    pct_farmacres pct_farmvalue pct_wilson_12 pct_cwenlistment pct_cwmortality
+
+* baseline: same estimates as BFFPT's Table 2 Panel A Column 4
+qui ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_00_2) `ctrl', ///
+    cluster(km_grid_cel_code) a(statefip dummy_trunmig_hat1_00_2)
+scalar se_bz_base = _se[pct_Southerners_white]
+di as text "BFFPT Table 2 Panel A Col 4:  beta = " %6.4f _b[pct_Southerners_white] ///
+    "   cluster SE = " %6.4f _se[pct_Southerners_white] "   N = " e(N)
+gen byte insamp = e(sample)
+
+* Step 2: auxiliary outcomes, applying the same rules as the guide: all
+* feasible package variables, excluding (i) ids/geography/design variables,
+* (ii) the outcome and regressor families -- here including every ingredient
+* of the shift-share instrument (origin-state migrant stocks, predicted
+* flows, truncation dummies) -- (iii) the primary controls, (iv) >50%
+* missing, (v) the 0.8 correlation screen. This yields d = 85.
+local excluded icpsrfip_1 icpsrfip year statename state_po countyname fips     ///
+    office candidate party candidatevotes totalvotes version xcoord ycoord     ///
+    decade gisjoin area_sqmi decade_1 gisjoin_1 area_sqmi_1 area_sqmii         ///
+    statefip county South border North D unincorp_1860 clon10 clat10           ///
+    km_grid_cel_code insamp Trump_share pct_Southerners_white                  ///
+    votes_1940 votes_1948 votes_2000 votes_2016 tot_vote_pres                  ///
+    elec1940 elecpop40 elec1948 elecpop48 elec2000 elecpop00 elec2016 elecpop16 ///
+    Prep1900 FEpairRep1900 FEpairRep0040 FEpair1870share                       ///
+    popdens_hist popdens_hist_00
+local ylist
+qui ds, has(type numeric)
+foreach v in `r(varlist)' {
+    local skip = 0
+    if strpos(" `excluded' ", " `v' ")              local skip = 1
+    if regexm("`v'", "^(D?pct_)?Southerners_white") local skip = 1
+    if regexm("`v'", "^Southerners_white")          local skip = 1
+    if regexm("`v'", "^D_pct_Southerners")          local skip = 1
+    if regexm("`v'", "^(iv_|dummy_trun)")           local skip = 1
+    if regexm("`v'", "_share_1900$")                local skip = 1
+    if regexm("`v'", "^(Southerners_black|Northerners_white|pct_Southerners_black|pct_Northerners_white|Dpct_Northerners_white)_[0-9]+$") local skip = 1
+    if regexm("`v'", "^pct_Northerners_white_hat")  local skip = 1
+    if regexm("`v'", "^dummy_truncate")             local skip = 1
+    if regexm("`v'", "^missing_")                   local skip = 1
+    if strpos(" `ctrl' ", " `v' ")                  local skip = 1
+    if `skip' continue
+    qui count if insamp
+    local nin = r(N)
+    qui count if missing(`v') & insamp
+    if r(N) >= 0.5*`nin' continue
+    local maxc = 0
+    foreach r in Trump_share pct_Southerners_white `ctrl' {
+        cap qui corr `v' `r' if insamp
+        if _rc continue
+        if abs(r(rho)) > `maxc' local maxc = abs(r(rho))
+    }
+    if `maxc' < 0.8 local ylist `ylist' `v'
 }
+di as text "auxiliary outcomes selected: " `: word count `ylist''
 
-* auxiliary outcomes: country-year economic variables from the replication
-* package (education, trade, investment, TFP, mortality, taxes, reforms,
-* population, external assets); democracy measures are excluded
-local ylist lp_bl ls_bl lh_bl taxratio secenr prienr tradewb mortnew ginv ///
-    rtfpna unrest unrestn marketref gfa nfa totalassets totalliabilities ///
-    nfagdp loginvpc ltfp ltrade2 lprienr lsecenr lgov lmort ///
-    PopulationtotalSPPOPTOTL Populationages014oftotal ///
-    Populationages1564oftota gdppercapitaconstant2000us rgdpl2 rgdpna_full
+tempfile bzbase
+save `bzbase'
 
-tempfile aceb
-save `aceb'
-
-* baseline: same estimates as ANRR's xtreg, fe (Table 2 Column 3)
-qui areg y dem ly1 ly2 ly3 ly4 yy*, absorb(wbcode2) cluster(wbcode2)
-scalar se_ace_base = _se[dem]
-di as text "ANRR Table 2 Col 3:  beta = " %6.4f _b[dem] "   cluster SE = " %6.4f _se[dem]
-
-*--- (6a) TMO augmenting the original clustering, with diagnostics
-sjlog using "$PPR/examples/acemogluExample.tex", replace
-tmo, cmd(areg y dem ly1 ly2 ly3 ly4 yy*, absorb(wbcode2) cluster(wbcode2)) ///
-    x(dem) ylist(`ylist') i(wbcode2) t(year) ///
-    plothist plothistnbins(100) plotse savedyad file("figures/acemoglu")
+*--- (6a) TMO augmenting the original grid clustering, with diagnostics
+sjlog using "$PPR/examples/bazziExample.tex", replace
+tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_00_2) ///
+    `ctrl', cluster(km_grid_cel_code) a(statefip dummy_trunmig_hat1_00_2)) ///
+    x(pct_Southerners_white) ylist(`ylist') i(fips) misslimit(0.5) ///
+    plothist plothistnbins(100) plotse file("figures/bazzi")
 sjlog close, replace
-
-scalar se_ace_tmo = e(tmo_se)
-scalar thr_ace    = e(threshold)
-di as text "TMO/cluster ratio: " %6.3f se_ace_tmo/se_ace_base
+scalar se_bz_tmo = e(tmo_se)
+scalar thres_bz  = e(threshold)
+di as text "TMO/cluster ratio: " %6.3f se_bz_tmo/se_bz_base
+cap erase "$PPR/figures/bazzi_dyad.dta"
 
 *--- (6b) method comparison (feeds the paper's comparison table)
-use `aceb', clear
-qui tmo, cmd(areg y dem ly1 ly2 ly3 ly4 yy*, absorb(wbcode2) cluster(wbcode2)) ///
-    x(dem) ylist(`ylist') i(wbcode2) t(year) ///
-    lat(cen_lat) lon(cen_lon) distthreshold(650) miles thresholdoff
-di as text "[Conley650]  SE=" %7.4f e(tmo_se) " ratio=" %6.3f e(tmo_se)/se_ace_base
-
-use `aceb', clear
-qui tmo, cmd(areg y dem ly1 ly2 ly3 ly4 yy*, absorb(wbcode2) cluster(wbcode2)) ///
-    x(dem) ylist(`ylist') i(wbcode2) t(year) ///
-    lat(cen_lat) lon(cen_lon) distthreshold(650) miles
-di as text "[TMO+Con650] SE=" %7.4f e(tmo_se) " ratio=" %6.3f e(tmo_se)/se_ace_base ///
+* TMO without augmenting the original clustering
+use `bzbase', clear
+qui tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_00_2) ///
+    `ctrl', robust a(statefip dummy_trunmig_hat1_00_2)) ///
+    x(pct_Southerners_white) ylist(`ylist') i(fips) misslimit(0.5)
+di as text "[TMO alone]   SE=" %7.4f e(tmo_se) " ratio=" %6.3f e(tmo_se)/se_bz_base ///
     " pct=" %6.3f e(pct_ge_thres)
 
-*--- (6c) predictors of highly-correlated country pairs (feeds the paper's
+* TMO augmenting state-level clusters
+use `bzbase', clear
+qui tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_00_2) ///
+    `ctrl', cluster(statefip) a(statefip dummy_trunmig_hat1_00_2)) ///
+    x(pct_Southerners_white) ylist(`ylist') i(fips) misslimit(0.5)
+di as text "[TMO+state]   SE=" %7.4f e(tmo_se) " ratio=" %6.3f e(tmo_se)/se_bz_base ///
+    " pct=" %6.3f e(pct_ge_thres)
+
+* Conley 150mi only
+use `bzbase', clear
+qui tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_00_2) ///
+    `ctrl', cluster(km_grid_cel_code) a(statefip dummy_trunmig_hat1_00_2)) ///
+    x(pct_Southerners_white) ylist(`ylist') i(fips) misslimit(0.5) ///
+    lat(clat10) lon(clon10) distthreshold(150) miles thresholdoff
+di as text "[Conley150]   SE=" %7.4f e(tmo_se) " ratio=" %6.3f e(tmo_se)/se_bz_base
+
+* TMO + Conley 150mi; save the pair-level file for the predictors table
+use `bzbase', clear
+qui tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_00_2) ///
+    `ctrl', cluster(km_grid_cel_code) a(statefip dummy_trunmig_hat1_00_2)) ///
+    x(pct_Southerners_white) ylist(`ylist') i(fips) misslimit(0.5) ///
+    lat(clat10) lon(clon10) distthreshold(150) miles savedyad file("$TMP/bazzi")
+di as text "[TMO+Con150]  SE=" %7.4f e(tmo_se) " ratio=" %6.3f e(tmo_se)/se_bz_base ///
+    " pct=" %6.3f e(pct_ge_thres)
+
+* SCPC and TMO + SCPC: scpc supports ivregress 2sls, so the specification is
+* rewritten with explicit state dummies (identical point estimates)
+use `bzbase', clear
+qui tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_00_2) ///
+    `ctrl', cluster(km_grid_cel_code) a(statefip dummy_trunmig_hat1_00_2)) ///
+    x(pct_Southerners_white) ylist(`ylist') i(fips) misslimit(0.5) ///
+    lat(clat10) lon(clon10) ///
+    scpc_cmd(ivregress 2sls Trump_share `ctrl' i.statefip ///
+    dummy_trunmig_hat1_00_2 (pct_Southerners_white = iv_mig_hat1_00_2), robust)
+di as text "[SCPC alone]  SE=" %7.4f scalar(scpc_se) " ratio=" %6.3f scalar(scpc_se)/se_bz_base
+di as text "[TMO+SCPC]    SE=" %7.4f e(tmo_se) " ratio=" %6.3f e(tmo_se)/se_bz_base
+
+*--- (6c) predictors of highly-correlated county pairs (feeds the paper's
 *    Table-1-style diagnostic table)
-use `aceb', clear
-keep wbcode2 country_name cen_lat cen_lon region gdp1960
+use `bzbase', clear
+keep fips countyname statefip km_grid_cel_code totpop
 qui gduplicates drop
-rename (wbcode2 country_name cen_lat cen_lon region gdp1960) ///
-       (id1 name1 lat1 lon1 reg1 gdp1)
-tempfile ace_c1
-save `ace_c1'
-rename (id1 name1 lat1 lon1 reg1 gdp1) (id2 name2 lat2 lon2 reg2 gdp2)
-tempfile ace_c2
-save `ace_c2'
+rename (fips countyname statefip km_grid_cel_code totpop) (id1 nm1 st1 gr1 pop1)
+tempfile bz_c1
+save `bz_c1'
+rename (id1 nm1 st1 gr1 pop1) (id2 nm2 st2 gr2 pop2)
+tempfile bz_c2
+save `bz_c2'
 
-use "$PPR/figures/acemoglu_dyad.dta", clear
+use "$TMP/bazzi_dyad.dta", clear
 keep if id1!=id2
-merge m:1 id1 using `ace_c1', keep(3) nogen
-merge m:1 id2 using `ace_c2', keep(3) nogen
-qui geodist lat1 lon1 lat2 lon2, gen(distmi) miles sphere
-gen byte above    = (abs(corr)>=thr_ace) & !missing(corr)
-gen byte near650  = distmi<=650
-gen byte samereg  = (reg1==reg2) & !missing(reg1)
-gen dgdp = abs(gdp1-gdp2)
-qui _pctile dgdp, p(10)
-gen byte neargdp  = dgdp<=r(r1) if !missing(dgdp)
-gen byte anyclose = near650==1 | samereg==1 | neargdp==1
-
-di as text _n "Predictors of |corr|>=threshold country pairs (vs all pairs):"
-foreach v in near650 samereg neargdp anyclose {
-    qui sum `v' if above==1
+gen byte above = (abs(corr)>=thres_bz) & !missing(corr)
+merge m:1 id1 using `bz_c1', keep(3) nogen
+merge m:1 id2 using `bz_c2', keep(3) nogen
+gen byte near150  = dist<=150
+gen byte samegrid = gr1==gr2 & !missing(gr1)
+gen byte samest   = st1==st2 & !missing(st1)
+gen dpop = abs(pop1-pop2)
+qui _pctile dpop, p(10)
+gen byte nearpop = dpop<=r(r1) if !missing(dpop)
+gen byte anyclose = near150|samegrid|samest|nearpop
+di as text _n "Predictors of selected county pairs (vs all pairs):"
+foreach v in near150 samegrid samest nearpop anyclose {
+    qui sum `v' if above
     local pa = 100*r(mean)
     qui sum `v'
     di as text "  `v': " %5.1f `pa' "%  (all pairs: " %5.1f 100*r(mean) "%)"
 }
-gsort -above -distmi
+gsort -above -dist
 di as text _n "Most distant highly-correlated pairs:"
-li name1 name2 corr distmi in 1/5, noobs clean
-erase "$PPR/figures/acemoglu_dyad.dta"
+li nm1 nm2 corr dist in 1/5, noobs clean
 
-*--- (6d) sensitivity of the adjustment to the auxiliary collection (feeds
-*    the paper's sensitivity table). Row 3 is a DELIBERATE misuse example:
-*    treatment measures must be excluded by design, diagnostics won't flag them
-use `aceb', clear
-local yThin lp_bl ls_bl lh_bl taxratio tradewb mortnew ginv rtfpna unrest ///
-    marketref nfagdp lgov prienr secenr PopulationtotalSPPOPTOTL ///
-    Populationages014oftotal Populationages1564oftota
-qui tmo, cmd(areg y dem ly1 ly2 ly3 ly4 yy*, absorb(wbcode2) cluster(wbcode2)) ///
-    x(dem) ylist(`yThin') i(wbcode2) t(year)
-di as text "[thin]    D=" e(N_outcomes) " df=" %5.1f e(dof) " thr=" %5.3f e(threshold) ///
-    " ratio=" %5.3f e(tmo_se)/se_ace_base
+*--- (6d) sensitivity of the adjustment to the auxiliary collection.
+* Row 2 trims the collection to d=60 by also excluding the secondary control
+* sets of the paper's own Table 2 (1900 controls, sorting confounds, terrain)
+* and the raw vote counts: an over-pruned collection whose estimated df fall
+* below the recommended floor of 20.
+* Row 3 is a DELIBERATE misuse example: variables measuring the treatment
+* (the regressor family) must be excluded by design; diagnostics won't flag them.
+use `bzbase', clear
+local ctrl1900 lnpopdens_hist_00 pct_mfgempl_00 pct_btot_00 pct_popmexico_00 ///
+    pct_popgerman_00 pct_popcanada_00 pct_popireland_00 pct_popitaly_00 ///
+    pct_farmacres_00 pct_farmvalue_00
+local confounds share_breckinridge pct_bryan_96 oil_1900 oil_1940 AnyMines ///
+    cottonmed potential_ag_prod d_coa d_riv elev_mean tri_ave d_lak ///
+    tye_tfe890_500k_100_l6
+local yTrim
+foreach v of local ylist {
+    local skip = 0
+    if strpos(" `ctrl1900' ", " `v' ")  local skip = 1
+    if strpos(" `confounds' ", " `v' ") local skip = 1
+    if regexm("`v'", "^votes_")         local skip = 1
+    if !`skip' local yTrim `yTrim' `v'
+}
+qui tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_00_2) ///
+    `ctrl', cluster(km_grid_cel_code) a(statefip dummy_trunmig_hat1_00_2)) ///
+    x(pct_Southerners_white) ylist(`yTrim') i(fips) misslimit(0.5)
+di as text "[trim]    D=" e(N_outcomes) " df=" %5.1f e(dof) " thr=" %5.3f e(threshold) ///
+    " ratio=" %5.3f e(tmo_se)/se_bz_base
 
-use `aceb', clear
-local yContam `ylist' demFH demPOL demBMR demCGV polity2 demevent revevent
-qui tmo, cmd(areg y dem ly1 ly2 ly3 ly4 yy*, absorb(wbcode2) cluster(wbcode2)) ///
-    x(dem) ylist(`yContam') i(wbcode2) t(year)
+use `bzbase', clear
+local yContam `ylist' pct_Southerners_white1900 pct_Southerners_white_brdr ///
+    Dpct_Southerners_white D_pct_Southerners_white_00_40
+qui tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_00_2) ///
+    `ctrl', cluster(km_grid_cel_code) a(statefip dummy_trunmig_hat1_00_2)) ///
+    x(pct_Southerners_white) ylist(`yContam') i(fips) misslimit(0.5)
 di as text "[contam]  D=" e(N_outcomes) " df=" %5.1f e(dof) " thr=" %5.3f e(threshold) ///
-    " ratio=" %5.3f e(tmo_se)/se_ace_base
+    " ratio=" %5.3f e(tmo_se)/se_bz_base
 
 *-------------------------------------------------------------------------------
 *--- (7) Step-by-step guide application: Bernini et al. (2023)
@@ -281,7 +367,7 @@ di as text "[contam]  D=" e(N_outcomes) " df=" %5.1f e(dof) " thr=" %5.3f e(thre
 *    coef 0.10, orig SE 0.04, d=60, df=25.8, delta*=0.54, 0.70% cross-cluster
 *    pairs, TMO ratio 1.37; Conley150 1.40 [9.0%], TMO+Conley 1.51 [9.6%].
 *-------------------------------------------------------------------------------
-use "$ROOT/supporting_material/Bernini et al (2023)/datasets/dataset_wide_1.dta", clear
+use "$SJ/data/replication/dataset_wide_1.dta", clear
 
 * county centroids (the variable -county- holds the 5-digit FIPS as string)
 preserve

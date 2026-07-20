@@ -446,8 +446,16 @@ program define tmo, eclass
         local paren_start = strpos("`remaining'", "(")
         local paren_end = strpos("`remaining'", ")")
         local controls = substr("`remaining'", 1, `paren_start'-1) + " " + substr("`remaining'", `paren_end'+1, .)
-        local xtildecmd1 reghdfe `endog' `instr' `controls', `after_comma'
-        local xtildecmd2 reghdfe __tmo_xhat `controls', `after_comma' resid
+        * The auxiliary regressions only produce residuals, so the original
+        * VCE options are unnecessary -- and reghdfe (>=6.13) rejects the bare
+        * -robust- shorthand that ivreghdfe accepts, so strip vce options here
+        local xt_opts `after_comma'
+        local xt_opts = regexr("`xt_opts'", "vce\([^)]*\)", "")
+        foreach o in robust robus robu rob ro r {
+            local xt_opts = subinword("`xt_opts'", "`o'", "", .)
+        }
+        local xtildecmd1 reghdfe `endog' `instr' `controls', `xt_opts'
+        local xtildecmd2 reghdfe __tmo_xhat `controls', `xt_opts' resid
     }
     if "`spec'"=="ivreg2" {
         * Create xtildecmd using reg

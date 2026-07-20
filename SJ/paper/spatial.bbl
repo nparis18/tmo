@@ -1,16 +1,10 @@
-\ifnum 17=1 \def\bibname{Reference}
+\ifnum 16=1 \def\bibname{Reference}
 \else \def\bibname{References} \fi
-\begin{thebibliography}{17}
+\begin{thebibliography}{16}
 \expandafter\ifx\csname natexlab\endcsname\relax\def\natexlab#1{#1}\fi
 \expandafter\ifx\csname url\endcsname\relax
   \def\url#1{\texttt{#1}}\fi
 \expandafter\ifx\csname urlprefix\endcsname\relax\def\urlprefix{URL }\fi
-
-\bibitem[{Acemoglu et~al.(2019)Acemoglu, Naidu, Restrepo, and
-  Robinson}]{Acemogluetal2019}
-Acemoglu, D., S.~Naidu, P.~Restrepo, and J.~A. Robinson. 2019.
-\newblock Democracy Does Cause Growth.
-\newblock \emph{Journal of Political Economy} 127(1): 47--100.
 
 \bibitem[{Becker et~al.(2026)Becker, Boll, and Voth}]{Beckeretal2026}
 Becker, S.~O., P.~D. Boll, and H.-J. Voth. 2026.

@@ -133,13 +133,16 @@ merge 1:1 fips using `maps', keep(3) nogen
 qui ds fips stfips PIN_persincpc_d EDU_college_d _CX _CY, not
 local ylist `r(varlist)'
 
+* NB: the 150-mile bandwidth matches the maps of maps.do and the applications
+* below, so that every distance-based figure and table in the paper uses the
+* same cutoff
 sjlog using "$PPR/examples/conleyExample.tex", replace
 tmo, cmd(reg PIN_persincpc_d EDU_college_d, r) ///
     x(EDU_college_d) ylist(`ylist') i(fips) lat(_CY) lon(_CX) ///
-    distthreshold(100) miles
+    distthreshold(150) miles
 tmo, cmd(reg PIN_persincpc_d EDU_college_d, r) ///
     x(EDU_college_d) ylist(`ylist') i(fips) lat(_CY) lon(_CX) ///
-    distthreshold(100) miles distkernel(bartlett)
+    distthreshold(150) miles distkernel(bartlett)
 sjlog close, replace
 
 // _CX: longitude ; _CY: latitude
@@ -162,8 +165,8 @@ sjlog close, replace
 *    migration and the vote for Trump. Fully self-contained: the dataset is
 *    built from the paper's replication package (see README_generated.txt next
 *    to the .dta) and all auxiliary outcomes come from that package.
-*    Replicates Table 2 Panel A Column 4 (the main specification, per the
-*    companion paper): shift-share IV, baseline controls, state and
+*    Replicates Table 2 Panel A Column 4 (the main specification, as
+*    identified by DellaVigna et al. 2025): shift-share IV, baseline controls, state and
 *    truncation-dummy FEs, SEs clustered by 60x60-mile grid cell.
 *    Published values: coef 1.03, cluster SE 0.17, n = 1,886.
 *-------------------------------------------------------------------------------
@@ -187,7 +190,8 @@ gen byte insamp = e(sample)
 * (ii) the outcome and regressor families -- here including every ingredient
 * of the shift-share instrument (origin-state migrant stocks, predicted
 * flows, truncation dummies) -- (iii) the primary controls, (iv) >50%
-* missing, (v) the 0.8 correlation screen. This yields d = 85.
+* missing, (v) |corr| > 0.8 with the outcome, regressor or controls.
+* This yields d = 85.
 local excluded icpsrfip_1 icpsrfip year statename state_po countyname fips     ///
     office candidate party candidatevotes totalvotes version xcoord ycoord     ///
     decade gisjoin area_sqmi decade_1 gisjoin_1 area_sqmi_1 area_sqmii         ///
@@ -363,7 +367,7 @@ di as text "[contam]  D=" e(N_outcomes) " df=" %5.1f e(dof) " thr=" %5.3f e(thre
 *-------------------------------------------------------------------------------
 *--- (7) Step-by-step guide application: Bernini et al. (2023)
 *    Fully self-contained: all 60 auxiliary outcomes come from the paper's own
-*    replication package (companion paper, Appendix E.2). Published targets:
+*    replication package (DellaVigna et al. 2025, Appendix E.2). Targets:
 *    coef 0.10, orig SE 0.04, d=60, df=25.8, delta*=0.54, 0.70% cross-cluster
 *    pairs, TMO ratio 1.37; Conley150 1.40 [9.0%], TMO+Conley 1.51 [9.6%].
 *-------------------------------------------------------------------------------
@@ -394,7 +398,8 @@ di as text "Bernini Table 2 Col 4: theta = " %6.4f _b[black_share60_lit_nc] ///
 scalar se_bern_base = _se[black_share60_lit_nc]
 gen byte insamp = e(sample)
 
-* Step 2: auxiliary outcomes, following the companion paper's E.2 rules:
+* Step 2: auxiliary outcomes, following the rules DellaVigna et al. (2025)
+* state for this application (their Appendix E.2):
 * all feasible package variables, excluding (i) ids/geography/design vars,
 * (ii) the outcome family, regressor family and their interactions, (iii) the
 * primary controls, (iv) >50% missing, (v) |corr|>0.8 with the outcome,
@@ -433,7 +438,7 @@ foreach v in `r(varlist)' {
     }
 }
 local d : word count `ylist'
-di as text "auxiliary outcomes selected: `d'  (correlation screen removed: `dropped')"
+di as text "auxiliary outcomes selected: `d'  (correlation cutoff removed: `dropped')"
 
 tempfile bernbase
 save `bernbase'
@@ -453,7 +458,7 @@ scalar thres_bern = e(threshold)
 di as text "TMO/cluster ratio: " %6.3f e(tmo_se)/se_bern_base
 cap erase "$PPR/figures/bernini_dyad.dta"
 
-* Steps 5-6: distance-based runs (Conley 150mi as in the companion paper) and
+* Steps 5-6: distance-based runs (Conley 150mi, as in DellaVigna et al. 2025) and
 * the pair-level file used for the predictors table
 use `bernbase', clear
 qui tmo, cmd(reg ch_ShareBl_AllOfficials black_share60_lit_nc black_share60 ///

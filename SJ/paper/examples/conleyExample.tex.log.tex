@@ -1,6 +1,6 @@
 . tmo, cmd(reg PIN_persincpc_d EDU_college_d, r) ///
 >     x(EDU_college_d) ylist(`ylist') i(fips) lat(_CY) lon(_CX) ///
->     distthreshold(100) miles
+>     distthreshold(150) miles
 {\smallskip}
 Linear Regression with TMO                              Number of obs =  3,060
                                                         R-squared     = 0.0705
@@ -10,20 +10,20 @@ Linear Regression with TMO                              Number of obs =  3,060
 \HLI{13}{\TOPT}\HLI{64}
 PIN_persin{\tytilde}d {\VBAR} Coefficient  Std. err.      t    P>|t|     [95\% conf. interval]
 \HLI{13}{\PLUS}\HLI{64}
-EDU_colleg{\tytilde}d {\VBAR}   .2299788    .035119     6.55   0.000     .1611196    .2988379
+EDU_colleg{\tytilde}d {\VBAR}   .2299788   .0382903     6.01   0.000     .1549014    .3050561
 \HLI{13}{\BOTT}\HLI{64}
 \HLI{79}
                                                                                
                                                    Optimal threshold      0.433
-                                            \% of off-diag in SE est.      1.943
-                              \% >= threshold (excl. clusters/Conley)      0.492
+                                            \% of off-diag in SE est.      3.580
+                              \% >= threshold (excl. clusters/Conley)      0.410
                                                           \# outcomes     90.000
                                                   Degrees of freedom     45.192
 \HLI{79}
 {\smallskip}
 . tmo, cmd(reg PIN_persincpc_d EDU_college_d, r) ///
 >     x(EDU_college_d) ylist(`ylist') i(fips) lat(_CY) lon(_CX) ///
->     distthreshold(100) miles distkernel(bartlett)
+>     distthreshold(150) miles distkernel(bartlett)
 {\smallskip}
 Linear Regression with TMO                              Number of obs =  3,060
                                                         R-squared     = 0.0705
@@ -33,13 +33,13 @@ Linear Regression with TMO                              Number of obs =  3,060
 \HLI{13}{\TOPT}\HLI{64}
 PIN_persin{\tytilde}d {\VBAR} Coefficient  Std. err.      t    P>|t|     [95\% conf. interval]
 \HLI{13}{\PLUS}\HLI{64}
-EDU_colleg{\tytilde}d {\VBAR}   .2299788    .029723     7.74   0.000     .1716996    .2882579
+EDU_colleg{\tytilde}d {\VBAR}   .2299788   .0323617     7.11   0.000     .1665259    .2934316
 \HLI{13}{\BOTT}\HLI{64}
 \HLI{79}
                                                                                
                                                    Optimal threshold      0.433
-                                            \% of off-diag in SE est.      1.943
-                              \% >= threshold (excl. clusters/Conley)      0.492
+                                            \% of off-diag in SE est.      3.580
+                              \% >= threshold (excl. clusters/Conley)      0.410
                                                           \# outcomes     90.000
                                                   Degrees of freedom     45.192
 \HLI{79}

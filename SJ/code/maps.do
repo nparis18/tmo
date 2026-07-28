@@ -40,6 +40,12 @@ local focalCTY  "143"
 local focal_cond COUNTYFP=="`focalCTY'"&STATEFP=="`focalST'"
 
 *-------------------------------------------------------------------------------
+*--- (0b) Distance cutoff shared by the Conley map (3) and the combined
+*    TMO+Conley maps (6). Keep these equal: the panels of the combined figure
+*    are read side by side, so a different radius in each is misleading.
+global CONLEYCUT 150
+
+*-------------------------------------------------------------------------------
 *--- (1) Make shape files
 *-------------------------------------------------------------------------------
 if `makeshape'==1 {
@@ -96,9 +102,12 @@ forvalues s=1/`=_N' {
     qui replace distance = r(distance) if _ID==`s'
 }
 
-* Plot the Conley Bartlett weight (decays with distance; 0 beyond 300 miles)
-* rather than raw distance, so colour intensity = weight in the estimator
-gen conley_w = 1 - distance/300 if distance<=300
+* Plot the Conley Bartlett weight (decays with distance; 0 beyond the cutoff)
+* rather than raw distance, so colour intensity = weight in the estimator.
+* NB: $CONLEYCUT is used by BOTH this map and the combined TMO+Conley map of
+* section 6, so that the two figures are directly comparable; it also matches
+* the 150-mile bandwidth used in the applications of the paper.
+gen conley_w = 1 - distance/$CONLEYCUT if distance<=$CONLEYCUT
 
 #delimit ;
 geoplot (area counties conley_w if `mainland', lwidth(none) lcolor(white)
@@ -204,7 +213,7 @@ if `findfocal'==1 {
 *    and saves them in the dyad; the SE lets pairs enter either because
 *    |corr| >= threshold (TMO) or because dist <= cutoff (Conley disk).
 *-------------------------------------------------------------------------------
-local conleycut 100
+local conleycut $CONLEYCUT
 
 preserve
 use "$DAT/maps/cb_2018_us_county_20m.dta", clear

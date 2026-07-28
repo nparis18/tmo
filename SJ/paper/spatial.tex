@@ -38,6 +38,8 @@
 \usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{longtable}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric,arrows.meta,positioning,calc}
 \usepackage{float}
 \usepackage{subfloat}
 \usepackage{verbatim}
@@ -580,7 +582,39 @@ The examples so far document how to run the command.  For a researcher consideri
   \item \textbf{Report the sensitivity of the adjustment to the outcome collection}, along with the outcome list itself.
 \end{enumerate}
 
-Steps 2 and 4 carry most of the weight, and both are discussed at length by \citet{Dellavignaetal2025}, whose recommendations we summarise here.  On the collection of outcomes, the guiding trade-off is between the number of outcomes and their relevance.  Precision in the estimated correlations improves with the number of outcomes, and too few of them leave the procedure unable to separate genuine correlation from noise; but outcomes that do not share the spatial structure of the outcome of interest dilute the signal, and adding them can shrink the adjustment rather than sharpen it.  Their evidence is that outcomes drawn from the same substantive area as the outcome of interest, and expressed in the same form, whether in levels or in differences, produce markedly stronger adjustments than an equally large collection of unrelated outcomes; and that variables taken from the study's own replication package tend to outperform generic series collected from external sources.  Their practical recommendation is to prefer the most relevant outcomes available subject to reaching at least twenty estimated degrees of freedom, a quantity {\tt tmo} reports directly.  Two requirements are dictated by the method rather than by relevance: the auxiliary outcomes must be measured for the same locations as the regression, and they must not measure the treatment, since correlations recovered from treatment-related outcomes reflect the spatial pattern of the treatment itself.  Outcomes should also be brought to a common scale before use, following the cleaning protocol of \citet[Appendix B.1]{Dellavignaetal2025}: normalise variables that scale with population, take logarithms of positive levels, standardise within period, and winsorise the extreme tails, so that a single heavy-tailed variable cannot dominate the correlation estimates.
+Step 2 carries most of the weight, and it is discussed at length by \citet{Dellavignaetal2025}, whose recommendations we summarise here.  The guiding trade-off is between the number of auxiliary outcomes and their relevance.  Precision in the estimated correlations improves with the number of outcomes, and too few of them leave the procedure unable to separate genuine correlation from noise; but outcomes that do not share the spatial structure of the outcome of interest dilute the signal, and adding them can shrink the adjustment rather than sharpen it.  Their evidence is that outcomes drawn from the same substantive area as the outcome of interest, and expressed in the same form, whether in levels or in differences, produce markedly stronger adjustments than an equally large collection of unrelated outcomes; and that variables taken from the study's own replication package tend to outperform generic series collected from external sources.  Their practical recommendation is to prefer the most relevant outcomes available subject to reaching at least twenty estimated degrees of freedom, a quantity {\tt tmo} reports directly.  Two requirements are dictated by the method rather than by relevance: the auxiliary outcomes must be measured for the same locations as the regression, and they must not measure the treatment, since correlations recovered from treatment-related outcomes reflect the spatial pattern of the treatment itself.  Outcomes should also be brought to a common scale before use, following the cleaning protocol of \citet[Appendix B.1]{Dellavignaetal2025}: normalise variables that scale with population, take logarithms of positive levels, standardise within period, and winsorise the extreme tails, so that a single heavy-tailed variable cannot dominate the correlation estimates.
+
+Steps 4 to 6 are where the workflow branches, and Figure \ref{fig:decision} summarises those branches.  Two features distinguish it from a testing procedure.  The first question is a judgement about whether the estimated correlation structure is credible, read off the diagnostic figures rather than from a formal test.  The second is descriptive: it asks how much of what TMO selected could have been recovered from geography alone, which is what determines whether a distance-based correction would have done the same work.
+
+\begin{figure}[H]
+\centering
+\caption{Choosing among the corrections}
+\label{fig:decision}
+\begin{tikzpicture}[
+  font=\footnotesize,
+  box/.style={draw, rounded corners, align=center, inner sep=5pt},
+  dec/.style={box, text width=46mm},
+  act/.style={box, text width=22mm},
+  arr/.style={-{Stealth[length=2mm]}},
+  lab/.style={font=\scriptsize\itshape, inner sep=2pt, fill=white}
+]
+% decision nodes on the centre line
+\node[dec] (diag) {Do the diagnostics support the\\estimated correlation structure?};
+\node[dec, below=15mm of diag] (geo) {Are the selected pairs nearby\\or in the same cluster?};
+% outcomes
+\node[act, right=8mm of diag, text width=26mm] (fail) {Enrich the collection, or report the baseline alone};
+\node[act, left=8mm of geo]  (few)  {TMO alone};
+\node[act, right=8mm of geo] (many) {Conley or SCPC alone};
+\node[act, below=12mm of geo, text width=46mm] (both) {Combine TMO with the clustered or distance-based baseline};
+\draw[arr] (diag) -- node[lab, above] {no} (fail);
+\draw[arr] (diag) -- node[lab, right] {yes} (geo);
+\draw[arr] (geo)  -- node[lab, above] {few} (few);
+\draw[arr] (geo)  -- node[lab, above] {nearly all} (many);
+\draw[arr] (geo)  -- node[lab, right] {some, the usual case} (both);
+\end{tikzpicture}
+\par\smallskip
+\begin{minipage}{0.95\linewidth}\scriptsize Notes: the first question is answered from the figures produced by {\tt plothist} and {\tt plotse} together with the reported degrees of freedom, checking that $\widehat{df}\geq 20$, that the centre of the correlation distribution follows the fitted Gaussian, and that the threshold curve is stable around its optimum.  The second is answered from the pair-level file saved by {\tt savedyad}, as in Tables \ref{tab:bernpredictors} and \ref{tab:bazzipredictors}.  Neither question is a formal test.\end{minipage}
+\end{figure}
 
 We illustrate each step using Bernini et al.\ (2023), a study of the effect of the Voting Rights Act on Black office-holding across 971 Southern counties.  All auxiliary outcomes are drawn from the paper's replication package, so every step below can be reproduced directly from publicly available materials.
 

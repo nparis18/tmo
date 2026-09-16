@@ -1,0 +1,73 @@
+. use "../data/replication/Republican_vote_data.dta", clear
+{\smallskip}
+. keep if year==1940
+(15,112 observations deleted)
+{\smallskip}
+. local controls lnpopdens_hist pct_mfgempl pct_unemploy pct_laborforce ///
+>     pct_btot pct_popmexico pct_popgerman pct_popcanada pct_popireland ///
+>     pct_popitaly pct_farmacres pct_farmvalue pct_wilson_12 ///
+>     pct_cwenlistment pct_cwmortality
+{\smallskip}
+. local iv (pct_Southerners_white = iv_mig_hat1_00_2)
+{\smallskip}
+. local fe absorb(statefip dummy_trunmig_hat1_00_2)
+{\smallskip}
+. local spec ivreghdfe Trump_share `iv' `controls', cluster(km_grid_cel_code) `
+> fe'
+{\smallskip}
+. quietly `spec'
+{\smallskip}
+. scalar se0 = _se[pct_Southerners_white]
+{\smallskip}
+. display "beta = " \%5.3f _b[pct_Southerners_white] "   clustered SE = " \%5.3f 
+> se0
+beta = 1.026   clustered SE = 0.167
+{\smallskip}
+. generate byte insample = e(sample)
+{\smallskip}
+. * candidates: all numeric variables except identifiers and geography, the
+. * outcome, the regressor, every ingredient of the shift-share instrument,
+. * missing-data flags and the controls; the loop then drops variables that are
+. * mostly missing, constant, or correlated above 0.8 with the model's variable
+> s
+. quietly ds icpsrfip_1 icpsrfip year fips county statefip South border North  
+> ///
+>     D unincorp_1860 xcoord ycoord clon10 clat10 decade decade_1 area_sqmi*   
+>  ///
+>     km_grid_cel_code insample Trump_share votes_1940 votes_1948 votes_2000   
+>  ///
+>     votes_2016 tot_vote_pres candidatevotes totalvotes elec* Prep1900 FEpair*
+>  ///
+>     popdens_hist popdens_hist_00 Southerners_white* pct_Southerners_white*   
+> ///
+>     Dpct_Southerners_white* D_pct_Southerners* iv_* dummy_trun* *_share_1900 
+> ///
+>     Southerners_black_? Southerners_black_?? pct_Southerners_black_?         
+>  ///
+>     pct_Southerners_black_?? Northerners_white_?? pct_Northerners_white_??   
+>  ///
+>     Dpct_Northerners_white_?? pct_Northerners_white_hat* missing_* `controls'
+> , not
+{\smallskip}
+. quietly ds `r(varlist)', has(type numeric)
+{\smallskip}
+. local candidates `r(varlist)'
+{\smallskip}
+. local ylist
+{\smallskip}
+. foreach v of local candidates {\lbr}
+  2.     quietly count if missing(`v') \& insample
+  3.     if r(N) >= 0.5*e(N) continue
+  4.     quietly summarize `v' if insample
+  5.     if r(sd) == 0 continue
+  6.     local maxcorr 0
+  7.     foreach r in Trump_share pct_Southerners_white `controls' {\lbr}
+  8.         quietly correlate `v' `r' if insample
+  9.         local maxcorr = max(`maxcorr', abs(r(rho)))
+ 10.     {\rbr}
+ 11.     if `maxcorr' < 0.8 local ylist `ylist' `v'
+ 12. {\rbr}
+{\smallskip}
+. display "auxiliary outcomes: " wordcount("`ylist'")
+auxiliary outcomes: 85
+{\smallskip}

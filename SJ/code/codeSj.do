@@ -162,377 +162,279 @@ sjlog close, replace
 
 *-------------------------------------------------------------------------------
 *--- (6) Second application: IV -- Bazzi et al. (2023), Southern white
-*    migration and the vote for Trump. Fully self-contained: the dataset is
-*    built from the paper's replication package (see README_generated.txt next
-*    to the .dta) and all auxiliary outcomes come from that package.
-*    Replicates Table 2 Panel A Column 4 (the main specification, as
-*    identified by DellaVigna et al. 2025): shift-share IV, baseline controls, state and
-*    truncation-dummy FEs, SEs clustered by 60x60-mile grid cell.
-*    Published values: coef 1.03, cluster SE 0.17, n = 1,886.
+*    migration and the vote for Trump. The dataset is rebuilt from the paper's
+*    replication package (see ../data/replication/README_generated.txt).
+*    Replicates Table 2 Panel A Column 4: shift-share IV, baseline controls,
+*    state and truncation-dummy FEs, SEs clustered by 60x60-mile grid cell.
+*
+*    Every sjlog in sections (6) and (7) is printed in the paper next to the
+*    table it produces, so each block must stay self-contained and readable,
+*    and the numbers it displays must be exactly those in the table.
 *-------------------------------------------------------------------------------
-use "$SJ/data/replication/Republican_vote_data.dta", clear
+
+*--- (6a) Steps 1-2: baseline and auxiliary outcomes
+sjlog using "$PPR/examples/bazziSetup.tex", replace
+use "../data/replication/Republican_vote_data.dta", clear
 keep if year==1940
-
-local ctrl lnpopdens_hist pct_mfgempl pct_unemploy pct_laborforce pct_btot ///
-    pct_popmexico pct_popgerman pct_popcanada pct_popireland pct_popitaly ///
-    pct_farmacres pct_farmvalue pct_wilson_12 pct_cwenlistment pct_cwmortality
-
-* baseline: same estimates as BFFPT's Table 2 Panel A Column 4
-qui ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_00_2) `ctrl', ///
-    cluster(km_grid_cel_code) a(statefip dummy_trunmig_hat1_00_2)
-scalar se_bz_base = _se[pct_Southerners_white]
-di as text "BFFPT Table 2 Panel A Col 4:  beta = " %6.4f _b[pct_Southerners_white] ///
-    "   cluster SE = " %6.4f _se[pct_Southerners_white] "   N = " e(N)
-gen byte insamp = e(sample)
-
-* Step 2: auxiliary outcomes, applying the same rules as the guide: all
-* feasible package variables, excluding (i) ids/geography/design variables,
-* (ii) the outcome and regressor families -- here including every ingredient
-* of the shift-share instrument (origin-state migrant stocks, predicted
-* flows, truncation dummies) -- (iii) the primary controls, (iv) >50%
-* missing, (v) |corr| > 0.8 with the outcome, regressor or controls.
-* This yields d = 85.
-local excluded icpsrfip_1 icpsrfip year statename state_po countyname fips     ///
-    office candidate party candidatevotes totalvotes version xcoord ycoord     ///
-    decade gisjoin area_sqmi decade_1 gisjoin_1 area_sqmi_1 area_sqmii         ///
-    statefip county South border North D unincorp_1860 clon10 clat10           ///
-    km_grid_cel_code insamp Trump_share pct_Southerners_white                  ///
-    votes_1940 votes_1948 votes_2000 votes_2016 tot_vote_pres                  ///
-    elec1940 elecpop40 elec1948 elecpop48 elec2000 elecpop00 elec2016 elecpop16 ///
-    Prep1900 FEpairRep1900 FEpairRep0040 FEpair1870share                       ///
-    popdens_hist popdens_hist_00
+local controls lnpopdens_hist pct_mfgempl pct_unemploy pct_laborforce ///
+    pct_btot pct_popmexico pct_popgerman pct_popcanada pct_popireland ///
+    pct_popitaly pct_farmacres pct_farmvalue pct_wilson_12 ///
+    pct_cwenlistment pct_cwmortality
+local iv (pct_Southerners_white = iv_mig_hat1_00_2)
+local fe absorb(statefip dummy_trunmig_hat1_00_2)
+local spec ivreghdfe Trump_share `iv' `controls', cluster(km_grid_cel_code) `fe'
+quietly `spec'
+scalar se0 = _se[pct_Southerners_white]
+display "beta = " %5.3f _b[pct_Southerners_white] "   clustered SE = " %5.3f se0
+generate byte insample = e(sample)
+* candidates: all numeric variables except identifiers and geography, the
+* outcome, the regressor, every ingredient of the shift-share instrument,
+* missing-data flags and the controls; the loop then drops variables that are
+* mostly missing, constant, or correlated above 0.8 with the model's variables
+quietly ds icpsrfip_1 icpsrfip year fips county statefip South border North  ///
+    D unincorp_1860 xcoord ycoord clon10 clat10 decade decade_1 area_sqmi*    ///
+    km_grid_cel_code insample Trump_share votes_1940 votes_1948 votes_2000    ///
+    votes_2016 tot_vote_pres candidatevotes totalvotes elec* Prep1900 FEpair* ///
+    popdens_hist popdens_hist_00 Southerners_white* pct_Southerners_white*   ///
+    Dpct_Southerners_white* D_pct_Southerners* iv_* dummy_trun* *_share_1900 ///
+    Southerners_black_? Southerners_black_?? pct_Southerners_black_?          ///
+    pct_Southerners_black_?? Northerners_white_?? pct_Northerners_white_??    ///
+    Dpct_Northerners_white_?? pct_Northerners_white_hat* missing_* `controls', not
+quietly ds `r(varlist)', has(type numeric)
+local candidates `r(varlist)'
 local ylist
-qui ds, has(type numeric)
-foreach v in `r(varlist)' {
-    local skip = 0
-    if strpos(" `excluded' ", " `v' ")              local skip = 1
-    if regexm("`v'", "^(D?pct_)?Southerners_white") local skip = 1
-    if regexm("`v'", "^Southerners_white")          local skip = 1
-    if regexm("`v'", "^D_pct_Southerners")          local skip = 1
-    if regexm("`v'", "^(iv_|dummy_trun)")           local skip = 1
-    if regexm("`v'", "_share_1900$")                local skip = 1
-    if regexm("`v'", "^(Southerners_black|Northerners_white|pct_Southerners_black|pct_Northerners_white|Dpct_Northerners_white)_[0-9]+$") local skip = 1
-    if regexm("`v'", "^pct_Northerners_white_hat")  local skip = 1
-    if regexm("`v'", "^dummy_truncate")             local skip = 1
-    if regexm("`v'", "^missing_")                   local skip = 1
-    if strpos(" `ctrl' ", " `v' ")                  local skip = 1
-    if `skip' continue
-    qui count if insamp
-    local nin = r(N)
-    qui count if missing(`v') & insamp
-    if r(N) >= 0.5*`nin' continue
-    local maxc = 0
-    foreach r in Trump_share pct_Southerners_white `ctrl' {
-        cap qui corr `v' `r' if insamp
-        if _rc continue
-        if abs(r(rho)) > `maxc' local maxc = abs(r(rho))
+foreach v of local candidates {
+    quietly count if missing(`v') & insample
+    if r(N) >= 0.5*e(N) continue
+    quietly summarize `v' if insample
+    if r(sd) == 0 continue
+    local maxcorr 0
+    foreach r in Trump_share pct_Southerners_white `controls' {
+        quietly correlate `v' `r' if insample
+        local maxcorr = max(`maxcorr', abs(r(rho)))
     }
-    if `maxc' < 0.8 local ylist `ylist' `v'
+    if `maxcorr' < 0.8 local ylist `ylist' `v'
 }
-di as text "auxiliary outcomes selected: " `: word count `ylist''
-
-tempfile bzbase
-save `bzbase'
-
-*--- (6a) TMO augmenting the original grid clustering, with diagnostics
-sjlog using "$PPR/examples/bazziExample.tex", replace
-tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_00_2) ///
-    `ctrl', cluster(km_grid_cel_code) a(statefip dummy_trunmig_hat1_00_2)) ///
-    x(pct_Southerners_white) ylist(`ylist') i(fips) misslimit(0.5) ///
-    plothist plothistnbins(100) plotse file("figures/bazzi")
+display "auxiliary outcomes: " wordcount("`ylist'")
 sjlog close, replace
-scalar se_bz_tmo = e(tmo_se)
-scalar thres_bz  = e(threshold)
-di as text "TMO/cluster ratio: " %6.3f se_bz_tmo/se_bz_base
+
+*--- (6b) Step 3: TMO augmenting the original grid clustering, with diagnostics
+sjlog using "$PPR/examples/bazziExample.tex", replace
+tmo, cmd(`spec') x(pct_Southerners_white) ylist(`ylist') i(fips) ///
+    misslimit(0.5) plothist plothistnbins(100) plotse file("figures/bazzi")
+sjlog close, replace
 cap erase "$PPR/figures/bazzi_dyad.dta"
 
-*--- (6b) method comparison (feeds the paper's comparison table)
-* TMO without augmenting the original clustering
-use `bzbase', clear
-qui tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_00_2) ///
-    `ctrl', robust a(statefip dummy_trunmig_hat1_00_2)) ///
-    x(pct_Southerners_white) ylist(`ylist') i(fips) misslimit(0.5)
-di as text "[TMO alone]   SE=" %7.4f e(tmo_se) " ratio=" %6.3f e(tmo_se)/se_bz_base ///
-    " pct=" %6.3f e(pct_ge_thres)
-
-* TMO augmenting state-level clusters
-use `bzbase', clear
-qui tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_00_2) ///
-    `ctrl', cluster(statefip) a(statefip dummy_trunmig_hat1_00_2)) ///
-    x(pct_Southerners_white) ylist(`ylist') i(fips) misslimit(0.5)
-di as text "[TMO+state]   SE=" %7.4f e(tmo_se) " ratio=" %6.3f e(tmo_se)/se_bz_base ///
-    " pct=" %6.3f e(pct_ge_thres)
-
-* Conley 150mi only
-use `bzbase', clear
-qui tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_00_2) ///
-    `ctrl', cluster(km_grid_cel_code) a(statefip dummy_trunmig_hat1_00_2)) ///
-    x(pct_Southerners_white) ylist(`ylist') i(fips) misslimit(0.5) ///
-    lat(clat10) lon(clon10) distthreshold(150) miles thresholdoff
-di as text "[Conley150]   SE=" %7.4f e(tmo_se) " ratio=" %6.3f e(tmo_se)/se_bz_base
-
-* TMO + Conley 150mi; save the pair-level file for the predictors table
-use `bzbase', clear
-qui tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_00_2) ///
-    `ctrl', cluster(km_grid_cel_code) a(statefip dummy_trunmig_hat1_00_2)) ///
-    x(pct_Southerners_white) ylist(`ylist') i(fips) misslimit(0.5) ///
-    lat(clat10) lon(clon10) distthreshold(150) miles savedyad file("$TMP/bazzi")
-di as text "[TMO+Con150]  SE=" %7.4f e(tmo_se) " ratio=" %6.3f e(tmo_se)/se_bz_base ///
-    " pct=" %6.3f e(pct_ge_thres)
-
-* SCPC and TMO + SCPC: scpc supports ivregress 2sls, so the specification is
-* rewritten with explicit state dummies (identical point estimates)
-use `bzbase', clear
-qui tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_00_2) ///
-    `ctrl', cluster(km_grid_cel_code) a(statefip dummy_trunmig_hat1_00_2)) ///
-    x(pct_Southerners_white) ylist(`ylist') i(fips) misslimit(0.5) ///
-    lat(clat10) lon(clon10) ///
-    scpc_cmd(ivregress 2sls Trump_share `ctrl' i.statefip ///
-    dummy_trunmig_hat1_00_2 (pct_Southerners_white = iv_mig_hat1_00_2), robust)
-di as text "[SCPC alone]  SE=" %7.4f scalar(scpc_se) " ratio=" %6.3f scalar(scpc_se)/se_bz_base
-di as text "[TMO+SCPC]    SE=" %7.4f e(tmo_se) " ratio=" %6.3f e(tmo_se)/se_bz_base
-
-*--- (6c) predictors of highly-correlated county pairs (feeds the paper's
-*    Table-1-style diagnostic table)
-use `bzbase', clear
+*--- (6c) Step 5: are the selected pairs organised by geography? (Table bazzipredictors)
+sjlog using "$PPR/examples/bazziPredictors.tex", replace
+local opts x(pct_Southerners_white) ylist(`ylist') i(fips) misslimit(0.5)
+quietly tmo, cmd(`spec') `opts' lat(clat10) lon(clon10) distthreshold(150) miles ///
+    savedyad file("bazzi")
+local threshold = e(threshold)
+preserve
 keep fips countyname statefip km_grid_cel_code totpop
-qui gduplicates drop
-rename (fips countyname statefip km_grid_cel_code totpop) (id1 nm1 st1 gr1 pop1)
-tempfile bz_c1
-save `bz_c1'
-rename (id1 nm1 st1 gr1 pop1) (id2 nm2 st2 gr2 pop2)
-tempfile bz_c2
-save `bz_c2'
-
-use "$TMP/bazzi_dyad.dta", clear
-keep if id1!=id2
-gen byte above = (abs(corr)>=thres_bz) & !missing(corr)
-merge m:1 id1 using `bz_c1', keep(3) nogen
-merge m:1 id2 using `bz_c2', keep(3) nogen
-gen byte near150  = dist<=150
-gen byte samegrid = gr1==gr2 & !missing(gr1)
-gen byte samest   = st1==st2 & !missing(st1)
-gen dpop = abs(pop1-pop2)
-qui _pctile dpop, p(10)
-gen byte nearpop = dpop<=r(r1) if !missing(dpop)
-gen byte anyclose = near150|samegrid|samest|nearpop
-di as text _n "Predictors of selected county pairs (vs all pairs):"
-foreach v in near150 samegrid samest nearpop anyclose {
-    qui sum `v' if above
-    local pa = 100*r(mean)
-    qui sum `v'
-    di as text "  `v': " %5.1f `pa' "%  (all pairs: " %5.1f 100*r(mean) "%)"
+rename (fips countyname statefip km_grid_cel_code totpop) (id1 name1 state1 grid1 pop1)
+tempfile loc1 loc2
+quietly save `loc1'
+rename *1 *2
+quietly save `loc2'
+use bazzi_dyad.dta, clear
+quietly drop if id1==id2
+generate byte selected = abs(corr) >= `threshold' & !missing(corr)
+quietly merge m:1 id1 using `loc1', keep(match) nogenerate
+quietly merge m:1 id2 using `loc2', keep(match) nogenerate
+generate byte within150 = dist <= 150
+generate byte samegrid  = grid1 == grid2
+generate byte samestate = state1 == state2
+generate dpop = abs(pop1 - pop2)
+quietly _pctile dpop, p(10)
+generate byte closepop = dpop <= r(r1) if !missing(dpop)
+generate byte any = within150 | samegrid | samestate | closepop
+display "criterion" _col(14) "selected pairs" _col(32) "all pairs"
+foreach v in within150 samegrid samestate closepop any {
+    quietly summarize `v' if selected
+    local sel = 100*r(mean)
+    quietly summarize `v'
+    display "`v'" _col(14) %4.1f `sel' "%" _col(32) %4.1f 100*r(mean) "%"
 }
-gsort -above -dist
-di as text _n "Most distant highly-correlated pairs:"
-li nm1 nm2 corr dist in 1/5, noobs clean
+gsort -selected -dist
+list name1 name2 corr dist in 1/3, noobs clean
+restore
+sjlog close, replace
+cap erase "$PPR/bazzi_dyad.dta"
 
-*--- (6d) sensitivity of the adjustment to the auxiliary collection.
-* Row 2 trims the collection to d=60 by also excluding the secondary control
-* sets of the paper's own Table 2 (1900 controls, sorting confounds, terrain)
-* and the raw vote counts: an over-pruned collection whose estimated df fall
-* below the recommended floor of 20.
-* Row 3 is a DELIBERATE misuse example: variables measuring the treatment
-* (the regressor family) must be excluded by design; diagnostics won't flag them.
-use `bzbase', clear
-local ctrl1900 lnpopdens_hist_00 pct_mfgempl_00 pct_btot_00 pct_popmexico_00 ///
-    pct_popgerman_00 pct_popcanada_00 pct_popireland_00 pct_popitaly_00 ///
-    pct_farmacres_00 pct_farmvalue_00
-local confounds share_breckinridge pct_bryan_96 oil_1900 oil_1940 AnyMines ///
-    cottonmed potential_ag_prod d_coa d_riv elev_mean tri_ave d_lak ///
-    tye_tfe890_500k_100_l6
-local yTrim
-foreach v of local ylist {
-    local skip = 0
-    if strpos(" `ctrl1900' ", " `v' ")  local skip = 1
-    if strpos(" `confounds' ", " `v' ") local skip = 1
-    if regexm("`v'", "^votes_")         local skip = 1
-    if !`skip' local yTrim `yTrim' `v'
-}
-qui tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_00_2) ///
-    `ctrl', cluster(km_grid_cel_code) a(statefip dummy_trunmig_hat1_00_2)) ///
-    x(pct_Southerners_white) ylist(`yTrim') i(fips) misslimit(0.5)
-di as text "[trim]    D=" e(N_outcomes) " df=" %5.1f e(dof) " thr=" %5.3f e(threshold) ///
-    " ratio=" %5.3f e(tmo_se)/se_bz_base
+*--- (6d) Step 6: method comparison (Table bazzicompare)
+sjlog using "$PPR/examples/bazziCompare.tex", replace
+capture program drop tmoline
+program tmoline
+    args label option
+    local se = cond("`option'"=="scpc", e(scpc_se), e(tmo_se))
+    display "`label'" _col(16) "SE = " %5.3f `se' "   ratio = " %4.2f `se'/se0 _continue
+    if "`option'"=="" display "   pairs = " %3.1f e(pct_ge_thres) "%"
+    else display
+end
+local robust  ivreghdfe Trump_share `iv' `controls', robust `fe'
+local bystate ivreghdfe Trump_share `iv' `controls', cluster(statefip) `fe'
+quietly tmo, cmd(`robust') `opts'
+tmoline "TMO"
+quietly tmo, cmd(`spec') `opts'
+tmoline "TMO + grid"
+quietly tmo, cmd(`bystate') `opts'
+tmoline "TMO + state"
+quietly tmo, cmd(`spec') `opts' lat(clat10) lon(clon10) distthreshold(150) miles thresholdoff
+tmoline "Conley"
+quietly tmo, cmd(`spec') `opts' lat(clat10) lon(clon10) distthreshold(150) miles
+tmoline "TMO + Conley"
+quietly tmo, cmd(`spec') `opts' lat(clat10) lon(clon10) ///
+    scpc_cmd(ivregress 2sls Trump_share `controls' i.statefip dummy_trunmig_hat1_00_2 `iv', robust)
+tmoline "SCPC" scpc
+tmoline "TMO + SCPC" nopairs
+sjlog close, replace
 
-use `bzbase', clear
-local yContam `ylist' pct_Southerners_white1900 pct_Southerners_white_brdr ///
+*--- (6e) Step 7: sensitivity to the outcome collection (Table bazziylist)
+sjlog using "$PPR/examples/bazziYlist.tex", replace
+* trimmed: also drop the paper's secondary control sets and the vote counts
+quietly ds lnpopdens_hist_00 pct_*_00 share_breckinridge pct_bryan_96 oil_1900 ///
+    oil_1940 AnyMines cottonmed potential_ag_prod d_coa d_riv d_lak elev_mean ///
+    tri_ave tye_tfe890_500k_100_l6 votes_*
+local secondary `r(varlist)'
+local ytrim : list ylist - secondary
+* misuse: add measures of the regressor itself
+local ymisuse `ylist' pct_Southerners_white1900 pct_Southerners_white_brdr ///
     Dpct_Southerners_white D_pct_Southerners_white_00_40
-qui tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_00_2) ///
-    `ctrl', cluster(km_grid_cel_code) a(statefip dummy_trunmig_hat1_00_2)) ///
-    x(pct_Southerners_white) ylist(`yContam') i(fips) misslimit(0.5)
-di as text "[contam]  D=" e(N_outcomes) " df=" %5.1f e(dof) " thr=" %5.3f e(threshold) ///
-    " ratio=" %5.3f e(tmo_se)/se_bz_base
+foreach collection in ylist ytrim ymisuse {
+    quietly tmo, cmd(`spec') x(pct_Southerners_white) ylist(``collection'') ///
+        i(fips) misslimit(0.5)
+    display "`collection'" _col(12) "d = " wordcount("``collection''") ///
+        "   df = " %4.1f e(dof) "   threshold = " %4.2f e(threshold) ///
+        "   ratio = " %4.2f e(tmo_se)/se0
+}
+sjlog close, replace
 
 *-------------------------------------------------------------------------------
 *--- (7) Step-by-step guide application: Bernini et al. (2023)
-*    Fully self-contained: all 60 auxiliary outcomes come from the paper's own
-*    replication package (DellaVigna et al. 2025, Appendix E.2). Targets:
-*    coef 0.10, orig SE 0.04, d=60, df=25.8, delta*=0.54, 0.70% cross-cluster
-*    pairs, TMO ratio 1.37; Conley150 1.40 [9.0%], TMO+Conley 1.51 [9.6%].
+*    Rules for the auxiliary outcomes follow DellaVigna et al. (2025, Appendix
+*    E.2); the 0.8 correlation cutoff is ours, as the rule gives no number.
 *-------------------------------------------------------------------------------
-use "$SJ/data/replication/dataset_wide_1.dta", clear
 
-* county centroids (the variable -county- holds the 5-digit FIPS as string)
-preserve
-use "$SJ/data/maps/cb_2018_us_county_20m.dta", clear
-destring GEOID, replace
-rename GEOID fips
-keep fips _CX _CY
-tempfile cent
-save `cent'
-restore
-gen long fips = real(county)
-merge 1:1 fips using `cent', keep(1 3) nogen
-
-* Step 1: baseline -- Table 2 Column 4 of Bernini et al. (preferred spec);
-* factor-variable syntax replaces the original xi: prefix (identical estimates)
-qui reg ch_ShareBl_AllOfficials black_share60_lit_nc black_share60 ///
-    c.urbanB60#literacy_nc c.unemp60#literacy_nc c.family_less_3000#literacy_nc ///
-    c.pop60#literacy_nc c.school_low#literacy_nc c.cotton_suitability#literacy_nc ///
-    c.cotton_share_land1964#literacy_nc c.anti_black_county#literacy_nc ///
-    c.pro_black_county#literacy_nc c.rep_share_1964#literacy_nc ///
-    ibn.STATE, nocon robust cluster(judicial_divisions_id)
-di as text "Bernini Table 2 Col 4: theta = " %6.4f _b[black_share60_lit_nc] ///
-    "  cluster SE = " %6.4f _se[black_share60_lit_nc] "  N = " e(N)
-scalar se_bern_base = _se[black_share60_lit_nc]
-gen byte insamp = e(sample)
-
-* Step 2: auxiliary outcomes, following the rules DellaVigna et al. (2025)
-* state for this application (their Appendix E.2):
-* all feasible package variables, excluding (i) ids/geography/design vars,
-* (ii) the outcome family, regressor family and their interactions, (iii) the
-* primary controls, (iv) >50% missing, (v) |corr|>0.8 with the outcome,
-* regressor, or any primary control. This yields exactly d = 60.
-local excluded county countycode FIPSTATE STATE geo judicial_divisions_id ///
-    literacy_nc SMD MIXED AL insamp fips _CX _CY
-local refs ch_ShareBl_AllOfficials black_share60_lit_nc black_share60 unemp60 ///
-    family_less_3000 pop60 school_low urbanB60 cotton_suitability ///
-    cotton_share_land1964 pro_black_county anti_black_county rep_share_1964
+*--- (7a) Steps 1-2: baseline and auxiliary outcomes
+sjlog using "$PPR/examples/berniniSetup.tex", replace
+use "../data/replication/dataset_wide_1.dta", clear
+generate long fips = real(county)
+local controls urbanB60 unemp60 family_less_3000 pop60 school_low ///
+    cotton_suitability cotton_share_land1964 anti_black_county ///
+    pro_black_county rep_share_1964
+local spec reg ch_ShareBl_AllOfficials black_share60_lit_nc black_share60 ///
+    c.(`controls')#literacy_nc ibn.STATE, nocon robust cluster(judicial_divisions_id)
+quietly `spec'
+scalar se0 = _se[black_share60_lit_nc]
+display "theta = " %5.3f _b[black_share60_lit_nc] "   clustered SE = " %5.3f se0
+generate byte insample = e(sample)
+* candidates: all numeric variables except identifiers, the outcome and
+* regressor families (with their literacy interactions) and the controls
+quietly ds county countycode FIPSTATE STATE geo judicial_divisions_id fips  ///
+    literacy_nc SMD MIXED AL insample ch_ShareBl_* ShareBl_* diffshareblack* ///
+    black_share* *_lit *_lit_* dist_lit* ln_rep_share_1964 `controls', not
+quietly ds `r(varlist)', has(type numeric)
+local candidates `r(varlist)'
 local ylist
-local dropped
-qui ds, has(type numeric)
-foreach v in `r(varlist)' {
-    local skip = 0
-    if strpos(" `excluded' ", " `v' ") local skip = 1
-    if regexm("`v'", "^(ch_)?ShareBl_") local skip = 1
-    if regexm("`v'", "^diffshareblack") local skip = 1
-    if regexm("`v'", "^black_share") local skip = 1
-    if regexm("`v'", "_lit(_|$)") local skip = 1
-    if regexm("`v'", "^dist_lit") local skip = 1
-    if strpos(" `refs' ", " `v' ") local skip = 1
-    if "`v'"=="ln_rep_share_1964" local skip = 1
-    if `skip'==0 {
-        qui sum insamp, meanonly
-        local nin = r(sum)
-        qui count if missing(`v') & insamp
-        if r(N) < 0.5*`nin' {
-            local maxc = 0
-            foreach r of local refs {
-                qui corr `v' `r' if insamp
-                if abs(r(rho)) > `maxc' local maxc = abs(r(rho))
-            }
-            if `maxc' < 0.8 local ylist `ylist' `v'
-            else local dropped `dropped' `v'
-        }
+local ynocutoff
+foreach v of local candidates {
+    quietly count if missing(`v') & insample
+    if r(N) >= 0.5*e(N) continue
+    quietly summarize `v' if insample
+    if r(sd) == 0 continue
+    local ynocutoff `ynocutoff' `v'
+    local maxcorr 0
+    foreach r in ch_ShareBl_AllOfficials black_share60_lit_nc black_share60 `controls' {
+        quietly correlate `v' `r' if insample
+        local maxcorr = max(`maxcorr', abs(r(rho)))
     }
+    if `maxcorr' < 0.8 local ylist `ylist' `v'
 }
-local d : word count `ylist'
-di as text "auxiliary outcomes selected: `d'  (correlation cutoff removed: `dropped')"
-
-tempfile bernbase
-save `bernbase'
-
-* Step 3: run tmo augmenting the original judicial-division clustering
-sjlog using "$PPR/examples/berniniExample.tex", replace
-tmo, cmd(reg ch_ShareBl_AllOfficials black_share60_lit_nc black_share60 ///
-    c.urbanB60#literacy_nc c.unemp60#literacy_nc c.family_less_3000#literacy_nc ///
-    c.pop60#literacy_nc c.school_low#literacy_nc c.cotton_suitability#literacy_nc ///
-    c.cotton_share_land1964#literacy_nc c.anti_black_county#literacy_nc ///
-    c.pro_black_county#literacy_nc c.rep_share_1964#literacy_nc ///
-    ibn.STATE, nocon robust cluster(judicial_divisions_id)) ///
-    x(black_share60_lit_nc) ylist(`ylist') i(fips) misslimit(0.5) ///
-    plothist plothistnbins(100) plotse file("figures/bernini")
+display "auxiliary outcomes: " wordcount("`ylist'") ///
+    "   (without the correlation cutoff: " wordcount("`ynocutoff'") ")"
 sjlog close, replace
-scalar thres_bern = e(threshold)
-di as text "TMO/cluster ratio: " %6.3f e(tmo_se)/se_bern_base
+
+*--- (7b) Step 3: TMO augmenting the original judicial-division clustering
+sjlog using "$PPR/examples/berniniExample.tex", replace
+tmo, cmd(`spec') x(black_share60_lit_nc) ylist(`ylist') i(fips) ///
+    misslimit(0.5) plothist plothistnbins(100) plotse file("figures/bernini")
+sjlog close, replace
 cap erase "$PPR/figures/bernini_dyad.dta"
 
-* Steps 5-6: distance-based runs (Conley 150mi, as in DellaVigna et al. 2025) and
-* the pair-level file used for the predictors table
-use `bernbase', clear
-qui tmo, cmd(reg ch_ShareBl_AllOfficials black_share60_lit_nc black_share60 ///
-    c.urbanB60#literacy_nc c.unemp60#literacy_nc c.family_less_3000#literacy_nc ///
-    c.pop60#literacy_nc c.school_low#literacy_nc c.cotton_suitability#literacy_nc ///
-    c.cotton_share_land1964#literacy_nc c.anti_black_county#literacy_nc ///
-    c.pro_black_county#literacy_nc c.rep_share_1964#literacy_nc ///
-    ibn.STATE, nocon robust cluster(judicial_divisions_id)) ///
-    x(black_share60_lit_nc) ylist(`ylist') i(fips) misslimit(0.5) ///
-    lat(_CY) lon(_CX) distthreshold(150) miles savedyad file("$TMP/bern")
-di as text "[TMO+Conley150] ratio=" %6.3f e(tmo_se)/se_bern_base ///
-    " pct=" %6.3f e(pct_ge_thres)
-
-use `bernbase', clear
-qui tmo, cmd(reg ch_ShareBl_AllOfficials black_share60_lit_nc black_share60 ///
-    c.urbanB60#literacy_nc c.unemp60#literacy_nc c.family_less_3000#literacy_nc ///
-    c.pop60#literacy_nc c.school_low#literacy_nc c.cotton_suitability#literacy_nc ///
-    c.cotton_share_land1964#literacy_nc c.anti_black_county#literacy_nc ///
-    c.pro_black_county#literacy_nc c.rep_share_1964#literacy_nc ///
-    ibn.STATE, nocon robust cluster(judicial_divisions_id)) ///
-    x(black_share60_lit_nc) ylist(`ylist') i(fips) misslimit(0.5) ///
-    lat(_CY) lon(_CX) distthreshold(150) miles thresholdoff
-di as text "[Conley150 only] ratio=" %6.3f e(tmo_se)/se_bern_base
-
-* Step 5: predictors of the selected pairs (feeds the paper's table)
+*--- (7c) Step 5: are the selected pairs organised by geography? (Table bernpredictors)
+sjlog using "$PPR/examples/berniniPredictors.tex", replace
 preserve
-use `bernbase', clear
-keep fips STATE judicial_divisions_id pop60 family_less_3000 urbanB60
-qui gduplicates drop
-rename (fips STATE judicial_divisions_id pop60 family_less_3000 urbanB60) ///
-       (id1 st1 jd1 pop1 pov1 urb1)
-tempfile bc1
-save `bc1'
-rename (id1 st1 jd1 pop1 pov1 urb1) (id2 st2 jd2 pop2 pov2 urb2)
-tempfile bc2
-save `bc2'
+use GEOID _CX _CY using "../data/maps/cb_2018_us_county_20m.dta", clear
+generate long fips = real(GEOID)
+tempfile centroids
+quietly save `centroids'
 restore
-
-use "$TMP/bern_dyad.dta", clear
-keep if id1!=id2
-gen byte above = (abs(corr)>=thres_bern) & !missing(corr)
-merge m:1 id1 using `bc1', keep(3) nogen
-merge m:1 id2 using `bc2', keep(3) nogen
-gen byte near150 = dist<=150
-gen byte samest  = st1==st2
-gen byte samejd  = jd1==jd2
+quietly merge 1:1 fips using `centroids', keep(master match) nogenerate
+local opts x(black_share60_lit_nc) ylist(`ylist') i(fips) misslimit(0.5)
+quietly tmo, cmd(`spec') `opts' lat(_CY) lon(_CX) distthreshold(150) miles ///
+    savedyad file("bernini")
+local threshold = e(threshold)
+preserve
+keep fips STATE judicial_divisions_id pop60 family_less_3000 urbanB60
+rename (fips STATE judicial_divisions_id pop60 family_less_3000 urbanB60) ///
+    (id1 state1 jdiv1 pop1 pov1 urb1)
+tempfile loc1 loc2
+quietly save `loc1'
+rename *1 *2
+quietly save `loc2'
+use bernini_dyad.dta, clear
+quietly drop if id1==id2
+generate byte selected = abs(corr) >= `threshold' & !missing(corr)
+quietly merge m:1 id1 using `loc1', keep(match) nogenerate
+quietly merge m:1 id2 using `loc2', keep(match) nogenerate
+generate byte within150 = dist <= 150
+generate byte samestate = state1 == state2
+generate byte samejdiv  = jdiv1 == jdiv2
 foreach p in pop pov urb {
-    gen d`p' = abs(`p'1-`p'2)
-    qui _pctile d`p', p(10)
-    gen byte near`p' = d`p'<=r(r1) if !missing(d`p')
+    generate d`p' = abs(`p'1 - `p'2)
+    quietly _pctile d`p', p(10)
+    generate byte close`p' = d`p' <= r(r1) if !missing(d`p')
 }
-gen byte anyclose = near150|samest|samejd|nearpop|nearpov|nearurb
-di as text _n "Predictors of selected county pairs (vs all pairs):"
-foreach v in near150 samest samejd nearpop nearpov nearurb anyclose {
-    qui sum `v' if above
-    local pa = 100*r(mean)
-    qui sum `v'
-    di as text "  `v': " %5.1f `pa' "%  (all pairs: " %5.1f 100*r(mean) "%)"
+generate byte any = within150 | samestate | samejdiv | closepop | closepov | closeurb
+display "criterion" _col(14) "selected pairs" _col(32) "all pairs"
+foreach v in within150 samestate samejdiv closepop closepov closeurb any {
+    quietly summarize `v' if selected
+    local sel = 100*r(mean)
+    quietly summarize `v'
+    display "`v'" _col(14) %4.1f `sel' "%" _col(32) %4.1f 100*r(mean) "%"
 }
+restore
+sjlog close, replace
+cap erase "$PPR/bernini_dyad.dta"
 
-* Step 7: sensitivity of the adjustment to the outcome collection
-use `bernbase', clear
-local yfam `ylist' pop50 urban50 family_less50_2000 school_low50 ///
-    familypovchange cotton_share_land1945 all_officials_1980
-local ycontam `ylist' black_share40 black_share50 diffshareblack60_50
-foreach variant in yfam ycontam {
-    use `bernbase', clear
-    qui tmo, cmd(reg ch_ShareBl_AllOfficials black_share60_lit_nc black_share60 ///
-        c.urbanB60#literacy_nc c.unemp60#literacy_nc c.family_less_3000#literacy_nc ///
-        c.pop60#literacy_nc c.school_low#literacy_nc c.cotton_suitability#literacy_nc ///
-        c.cotton_share_land1964#literacy_nc c.anti_black_county#literacy_nc ///
-        c.pro_black_county#literacy_nc c.rep_share_1964#literacy_nc ///
-        ibn.STATE, nocon robust cluster(judicial_divisions_id)) ///
-        x(black_share60_lit_nc) ylist(``variant'') i(fips) misslimit(0.5)
-    di as text "[`variant'] D=" e(N_outcomes) " df=" %5.1f e(dof) ///
-        " thr=" %5.3f e(threshold) " ratio=" %5.3f e(tmo_se)/se_bern_base
+*--- (7d) Step 6: method comparison (Table berncompare)
+sjlog using "$PPR/examples/berniniCompare.tex", replace
+capture program drop tmoline
+program tmoline
+    args label option
+    local se = cond("`option'"=="scpc", e(scpc_se), e(tmo_se))
+    display "`label'" _col(16) "SE = " %5.3f `se' "   ratio = " %4.2f `se'/se0 _continue
+    if "`option'"=="" display "   pairs = " %3.1f e(pct_ge_thres) "%"
+    else display
+end
+quietly tmo, cmd(`spec') `opts' lat(_CY) lon(_CX) distthreshold(150) miles thresholdoff
+tmoline "Conley"
+quietly tmo, cmd(`spec') `opts'
+tmoline "TMO"
+quietly tmo, cmd(`spec') `opts' lat(_CY) lon(_CX) distthreshold(150) miles
+tmoline "TMO + Conley"
+sjlog close, replace
+
+*--- (7e) Step 7: sensitivity to the outcome collection (Table bernylist)
+sjlog using "$PPR/examples/berniniYlist.tex", replace
+local ymisuse `ylist' black_share40 black_share50 diffshareblack60_50
+foreach collection in ylist ynocutoff ymisuse {
+    quietly tmo, cmd(`spec') x(black_share60_lit_nc) ylist(``collection'') ///
+        i(fips) misslimit(0.5)
+    display "`collection'" _col(12) "d = " wordcount("``collection''") ///
+        "   df = " %4.1f e(dof) "   threshold = " %4.2f e(threshold) ///
+        "   ratio = " %4.2f e(tmo_se)/se0
 }
+sjlog close, replace

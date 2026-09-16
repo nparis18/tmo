@@ -1,0 +1,52 @@
+. capture program drop tmoline
+{\smallskip}
+. program tmoline
+  1.     args label option
+  2.     local se = cond("`option'"=="scpc", e(scpc_se), e(tmo_se))
+  3.     display "`label'" _col(16) "SE = " \%5.3f `se' "   ratio = " \%4.2f `se'
+> /se0 _continue
+  4.     if "`option'"=="" display "   pairs = " \%3.1f e(pct_ge_thres) "\%"
+  5.     else display
+  6. end
+{\smallskip}
+. local robust  ivreghdfe Trump_share `iv' `controls', robust `fe'
+{\smallskip}
+. local bystate ivreghdfe Trump_share `iv' `controls', cluster(statefip) `fe'
+{\smallskip}
+. quietly tmo, cmd(`robust') `opts'
+{\smallskip}
+. tmoline "TMO"
+TMO            SE = 0.205   ratio = 1.22   pairs = 1.9\%
+{\smallskip}
+. quietly tmo, cmd(`spec') `opts'
+{\smallskip}
+. tmoline "TMO + grid"
+TMO + grid     SE = 0.209   ratio = 1.25   pairs = 2.4\%
+{\smallskip}
+. quietly tmo, cmd(`bystate') `opts'
+{\smallskip}
+. tmoline "TMO + state"
+TMO + state    SE = 0.241   ratio = 1.44   pairs = 5.2\%
+{\smallskip}
+. quietly tmo, cmd(`spec') `opts' lat(clat10) lon(clon10) distthreshold(150) mi
+> les thresholdoff
+{\smallskip}
+. tmoline "Conley"
+Conley         SE = 0.235   ratio = 1.41   pairs = 4.8\%
+{\smallskip}
+. quietly tmo, cmd(`spec') `opts' lat(clat10) lon(clon10) distthreshold(150) mi
+> les
+{\smallskip}
+. tmoline "TMO + Conley"
+TMO + Conley   SE = 0.240   ratio = 1.44   pairs = 6.2\%
+{\smallskip}
+. quietly tmo, cmd(`spec') `opts' lat(clat10) lon(clon10) ///
+>     scpc_cmd(ivregress 2sls Trump_share `controls' i.statefip dummy_trunmig_h
+> at1_00_2 `iv', robust)
+{\smallskip}
+. tmoline "SCPC" scpc
+SCPC           SE = 0.203   ratio = 1.21
+{\smallskip}
+. tmoline "TMO + SCPC" nopairs
+TMO + SCPC     SE = 0.246   ratio = 1.47
+{\smallskip}

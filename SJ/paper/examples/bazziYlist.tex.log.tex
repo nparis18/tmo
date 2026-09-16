@@ -1,0 +1,28 @@
+. * trimmed: also drop the paper's secondary control sets and the vote counts
+. quietly ds lnpopdens_hist_00 pct_*_00 share_breckinridge pct_bryan_96 oil_190
+> 0 ///
+>     oil_1940 AnyMines cottonmed potential_ag_prod d_coa d_riv d_lak elev_mean
+>  ///
+>     tri_ave tye_tfe890_500k_100_l6 votes_*
+{\smallskip}
+. local secondary `r(varlist)'
+{\smallskip}
+. local ytrim : list ylist - secondary
+{\smallskip}
+. * misuse: add measures of the regressor itself
+. local ymisuse `ylist' pct_Southerners_white1900 pct_Southerners_white_brdr //
+> /
+>     Dpct_Southerners_white D_pct_Southerners_white_00_40
+{\smallskip}
+. foreach collection in ylist ytrim ymisuse {\lbr}
+  2.     quietly tmo, cmd(`spec') x(pct_Southerners_white) ylist(``collection''
+> ) ///
+>         i(fips) misslimit(0.5)
+  3.     display "`collection'" _col(12) "d = " wordcount("``collection''") ///
+>         "   df = " \%4.1f e(dof) "   threshold = " \%4.2f e(threshold) ///
+>         "   ratio = " \%4.2f e(tmo_se)/se0
+  4. {\rbr}
+ylist      d = 85   df = 25.9   threshold = 0.51   ratio = 1.25
+ytrim      d = 60   df = 15.8   threshold = 0.64   ratio = 1.27
+ymisuse    d = 89   df = 27.8   threshold = 0.49   ratio = 1.21
+{\smallskip}

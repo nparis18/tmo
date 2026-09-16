@@ -1,13 +1,5 @@
-. tmo, cmd(reg ch_ShareBl_AllOfficials black_share60_lit_nc black_share60 ///
->     c.urbanB60\#literacy_nc c.unemp60\#literacy_nc c.family_less_3000\#literacy_
-> nc ///
->     c.pop60\#literacy_nc c.school_low\#literacy_nc c.cotton_suitability\#literac
-> y_nc ///
->     c.cotton_share_land1964\#literacy_nc c.anti_black_county\#literacy_nc ///
->     c.pro_black_county\#literacy_nc c.rep_share_1964\#literacy_nc ///
->     ibn.STATE, nocon robust cluster(judicial_divisions_id)) ///
->     x(black_share60_lit_nc) ylist(`ylist') i(fips) misslimit(0.5) ///
->     plothist plothistnbins(100) plotse file("figures/bernini")
+. tmo, cmd(`spec') x(black_share60_lit_nc) ylist(`ylist') i(fips) ///
+>     misslimit(0.5) plothist plothistnbins(100) plotse file("figures/bernini")
 file {\bftt{figures/bernini_hist.png}} written in PNG format
 Calculating TMO SE over threshold at 0.00
 Calculating TMO SE over threshold at 0.20

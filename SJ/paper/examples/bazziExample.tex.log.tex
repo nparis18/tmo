@@ -1,9 +1,5 @@
-. tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_00_2) ///
->     `ctrl', cluster(km_grid_cel_code) a(statefip dummy_trunmig_hat1_00_2)) //
-> /
->     x(pct_Southerners_white) ylist(`ylist') i(fips) misslimit(0.5) ///
->     plothist plothistnbins(100) plotse file("figures/bazzi")
-(file {\bftt{figures/bazzi_hist.png}} not found)
+. tmo, cmd(`spec') x(pct_Southerners_white) ylist(`ylist') i(fips) ///
+>     misslimit(0.5) plothist plothistnbins(100) plotse file("figures/bazzi")
 file {\bftt{figures/bazzi_hist.png}} written in PNG format
 Calculating TMO SE over threshold at 0.00
 Calculating TMO SE over threshold at 0.20

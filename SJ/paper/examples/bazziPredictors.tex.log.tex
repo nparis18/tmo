@@ -1,0 +1,73 @@
+. local opts x(pct_Southerners_white) ylist(`ylist') i(fips) misslimit(0.5)
+{\smallskip}
+. quietly tmo, cmd(`spec') `opts' lat(clat10) lon(clon10) distthreshold(150) mi
+> les ///
+>     savedyad file("bazzi")
+{\smallskip}
+. local threshold = e(threshold)
+{\smallskip}
+. preserve
+{\smallskip}
+. keep fips countyname statefip km_grid_cel_code totpop
+{\smallskip}
+. rename (fips countyname statefip km_grid_cel_code totpop) (id1 name1 state1 g
+> rid1 pop1)
+{\smallskip}
+. tempfile loc1 loc2
+{\smallskip}
+. quietly save `loc1'
+{\smallskip}
+. rename *1 *2
+{\smallskip}
+. quietly save `loc2'
+{\smallskip}
+. use bazzi_dyad.dta, clear
+{\smallskip}
+. quietly drop if id1==id2
+{\smallskip}
+. generate byte selected = abs(corr) >= `threshold' \& !missing(corr)
+{\smallskip}
+. quietly merge m:1 id1 using `loc1', keep(match) nogenerate
+{\smallskip}
+. quietly merge m:1 id2 using `loc2', keep(match) nogenerate
+{\smallskip}
+. generate byte within150 = dist <= 150
+{\smallskip}
+. generate byte samegrid  = grid1 == grid2
+{\smallskip}
+. generate byte samestate = state1 == state2
+{\smallskip}
+. generate dpop = abs(pop1 - pop2)
+{\smallskip}
+. quietly _pctile dpop, p(10)
+{\smallskip}
+. generate byte closepop = dpop <= r(r1) if !missing(dpop)
+{\smallskip}
+. generate byte any = within150 | samegrid | samestate | closepop
+{\smallskip}
+. display "criterion" _col(14) "selected pairs" _col(32) "all pairs"
+criterion    selected pairs    all pairs
+{\smallskip}
+. foreach v in within150 samegrid samestate closepop any {\lbr}
+  2.     quietly summarize `v' if selected
+  3.     local sel = 100*r(mean)
+  4.     quietly summarize `v'
+  5.     display "`v'" _col(14) \%4.1f `sel' "\%" _col(32) \%4.1f 100*r(mean) "\%"
+  6. {\rbr}
+within150    26.3\%              4.5\%
+samegrid      5.4\%              0.7\%
+samestate    33.8\%              3.9\%
+closepop     15.9\%             10.0\%
+any          47.0\%             15.4\%
+{\smallskip}
+. gsort -selected -dist
+{\smallskip}
+. list name1 name2 corr dist in 1/3, noobs clean
+{\smallskip}
+        name1          name2        corr        dist  
+    Aroostook    Santa Clara    .5261242   2747.9299  
+    Penobscot   Contra Costa   -.5093091   2747.7114  
+      Lincoln   Contra Costa    .5394935   2721.6251  
+{\smallskip}
+. restore
+{\smallskip}

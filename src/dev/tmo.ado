@@ -1073,6 +1073,8 @@ program define tmo, eclass
             ereturn scalar finite_sample_dof = scalar(dof_adj)
             ereturn scalar df_r = scalar(df_r)
             ereturn scalar scpc_cv = ${scpc_cv}
+            * SCPC-only standard error (missing unless scpc_cmd() is given)
+            if "`scpc_cmd'"!="" ereturn scalar scpc_se = scalar(scpc_se)
 
         if "`saveest'"!="" {
             tmo_save, `savepath'

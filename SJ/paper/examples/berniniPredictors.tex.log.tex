@@ -1,0 +1,81 @@
+. preserve
+{\smallskip}
+. use GEOID _CX _CY using "../data/maps/cb_2018_us_county_20m.dta", clear
+{\smallskip}
+. generate long fips = real(GEOID)
+{\smallskip}
+. tempfile centroids
+{\smallskip}
+. quietly save `centroids'
+{\smallskip}
+. restore
+{\smallskip}
+. quietly merge 1:1 fips using `centroids', keep(master match) nogenerate
+{\smallskip}
+. local opts x(black_share60_lit_nc) ylist(`ylist') i(fips) misslimit(0.5)
+{\smallskip}
+. quietly tmo, cmd(`spec') `opts' lat(_CY) lon(_CX) distthreshold(150) miles //
+> /
+>     savedyad file("bernini")
+{\smallskip}
+. local threshold = e(threshold)
+{\smallskip}
+. preserve
+{\smallskip}
+. keep fips STATE judicial_divisions_id pop60 family_less_3000 urbanB60
+{\smallskip}
+. rename (fips STATE judicial_divisions_id pop60 family_less_3000 urbanB60) ///
+>     (id1 state1 jdiv1 pop1 pov1 urb1)
+{\smallskip}
+. tempfile loc1 loc2
+{\smallskip}
+. quietly save `loc1'
+{\smallskip}
+. rename *1 *2
+{\smallskip}
+. quietly save `loc2'
+{\smallskip}
+. use bernini_dyad.dta, clear
+{\smallskip}
+. quietly drop if id1==id2
+{\smallskip}
+. generate byte selected = abs(corr) >= `threshold' \& !missing(corr)
+{\smallskip}
+. quietly merge m:1 id1 using `loc1', keep(match) nogenerate
+{\smallskip}
+. quietly merge m:1 id2 using `loc2', keep(match) nogenerate
+{\smallskip}
+. generate byte within150 = dist <= 150
+{\smallskip}
+. generate byte samestate = state1 == state2
+{\smallskip}
+. generate byte samejdiv  = jdiv1 == jdiv2
+{\smallskip}
+. foreach p in pop pov urb {\lbr}
+  2.     generate d`p' = abs(`p'1 - `p'2)
+  3.     quietly _pctile d`p', p(10)
+  4.     generate byte close`p' = d`p' <= r(r1) if !missing(d`p')
+  5. {\rbr}
+{\smallskip}
+. generate byte any = within150 | samestate | samejdiv | closepop | closepov | 
+> closeurb
+{\smallskip}
+. display "criterion" _col(14) "selected pairs" _col(32) "all pairs"
+criterion    selected pairs    all pairs
+{\smallskip}
+. foreach v in within150 samestate samejdiv closepop closepov closeurb any {\lbr}
+  2.     quietly summarize `v' if selected
+  3.     local sel = 100*r(mean)
+  4.     quietly summarize `v'
+  5.     display "`v'" _col(14) \%4.1f `sel' "\%" _col(32) \%4.1f 100*r(mean) "\%"
+  6. {\rbr}
+within150    26.9\%              9.0\%
+samestate    37.3\%             11.8\%
+samejdiv      7.3\%              0.9\%
+closepop     10.3\%             10.0\%
+closepov     13.0\%             10.2\%
+closeurb     11.2\%             10.1\%
+any          56.3\%             38.0\%
+{\smallskip}
+. restore
+{\smallskip}

@@ -1,0 +1,59 @@
+. use "../data/replication/dataset_wide_1.dta", clear
+(County and City Data Book [United States] Consolidated File: County Data, 1947
+> -1)
+{\smallskip}
+. generate long fips = real(county)
+{\smallskip}
+. local controls urbanB60 unemp60 family_less_3000 pop60 school_low ///
+>     cotton_suitability cotton_share_land1964 anti_black_county ///
+>     pro_black_county rep_share_1964
+{\smallskip}
+. local spec reg ch_ShareBl_AllOfficials black_share60_lit_nc black_share60 ///
+>     c.(`controls')\#literacy_nc ibn.STATE, nocon robust cluster(judicial_divis
+> ions_id)
+{\smallskip}
+. quietly `spec'
+{\smallskip}
+. scalar se0 = _se[black_share60_lit_nc]
+{\smallskip}
+. display "theta = " \%5.3f _b[black_share60_lit_nc] "   clustered SE = " \%5.3f 
+> se0
+theta = 0.103   clustered SE = 0.045
+{\smallskip}
+. generate byte insample = e(sample)
+{\smallskip}
+. * candidates: all numeric variables except identifiers, the outcome and
+. * regressor families (with their literacy interactions) and the controls
+. quietly ds county countycode FIPSTATE STATE geo judicial_divisions_id fips  /
+> //
+>     literacy_nc SMD MIXED AL insample ch_ShareBl_* ShareBl_* diffshareblack* 
+> ///
+>     black_share* *_lit *_lit_* dist_lit* ln_rep_share_1964 `controls', not
+{\smallskip}
+. quietly ds `r(varlist)', has(type numeric)
+{\smallskip}
+. local candidates `r(varlist)'
+{\smallskip}
+. local ylist
+{\smallskip}
+. local ynocutoff
+{\smallskip}
+. foreach v of local candidates {\lbr}
+  2.     quietly count if missing(`v') \& insample
+  3.     if r(N) >= 0.5*e(N) continue
+  4.     quietly summarize `v' if insample
+  5.     if r(sd) == 0 continue
+  6.     local ynocutoff `ynocutoff' `v'
+  7.     local maxcorr 0
+  8.     foreach r in ch_ShareBl_AllOfficials black_share60_lit_nc black_share6
+> 0 `controls' {\lbr}
+  9.         quietly correlate `v' `r' if insample
+ 10.         local maxcorr = max(`maxcorr', abs(r(rho)))
+ 11.     {\rbr}
+ 12.     if `maxcorr' < 0.8 local ylist `ylist' `v'
+ 13. {\rbr}
+{\smallskip}
+. display "auxiliary outcomes: " wordcount("`ylist'") ///
+>     "   (without the correlation cutoff: " wordcount("`ynocutoff'") ")"
+auxiliary outcomes: 60   (without the correlation cutoff: 67)
+{\smallskip}

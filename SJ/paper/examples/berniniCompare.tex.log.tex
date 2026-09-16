@@ -1,0 +1,27 @@
+. capture program drop tmoline
+{\smallskip}
+. program tmoline
+  1.     args label option
+  2.     local se = cond("`option'"=="scpc", e(scpc_se), e(tmo_se))
+  3.     display "`label'" _col(16) "SE = " \%5.3f `se' "   ratio = " \%4.2f `se'
+> /se0 _continue
+  4.     if "`option'"=="" display "   pairs = " \%3.1f e(pct_ge_thres) "\%"
+  5.     else display
+  6. end
+{\smallskip}
+. quietly tmo, cmd(`spec') `opts' lat(_CY) lon(_CX) distthreshold(150) miles th
+> resholdoff
+{\smallskip}
+. tmoline "Conley"
+Conley         SE = 0.063   ratio = 1.41   pairs = 9.0\%
+{\smallskip}
+. quietly tmo, cmd(`spec') `opts'
+{\smallskip}
+. tmoline "TMO"
+TMO            SE = 0.051   ratio = 1.15   pairs = 1.6\%
+{\smallskip}
+. quietly tmo, cmd(`spec') `opts' lat(_CY) lon(_CX) distthreshold(150) miles
+{\smallskip}
+. tmoline "TMO + Conley"
+TMO + Conley   SE = 0.063   ratio = 1.42   pairs = 9.6\%
+{\smallskip}

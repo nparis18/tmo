@@ -14,4 +14,4 @@ clone of this repo alone:
 
 Packages currently in ~/Dropbox/literature:
   acemoglu et al (2019)  bazzi et al (2023)  bernini et al (2023)
-  muller watson (2022)   muller watson (2024)
+  muller watson (2022)   muller watson (2023)   muller watson (2024)

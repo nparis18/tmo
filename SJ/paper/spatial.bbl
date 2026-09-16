@@ -1,25 +1,64 @@
-\ifnum 16=1 \def\bibname{Reference}
+\ifnum 24=1 \def\bibname{Reference}
 \else \def\bibname{References} \fi
-\begin{thebibliography}{16}
+\begin{thebibliography}{24}
 \expandafter\ifx\csname natexlab\endcsname\relax\def\natexlab#1{#1}\fi
 \expandafter\ifx\csname url\endcsname\relax
   \def\url#1{\texttt{#1}}\fi
 \expandafter\ifx\csname urlprefix\endcsname\relax\def\urlprefix{URL }\fi
+
+\bibitem[{Baum et~al.(2002)Baum, Schaffer, and Stillman}]{Baumetal2002ivreg2}
+Baum, C.~F., M.~E. Schaffer, and S.~Stillman. 2002.
+\newblock {IVREG2}: Stata module for extended instrumental variables/{2SLS} and
+  {GMM} estimation.
+\newblock Statistical Software Components S425401, Boston College Department of
+  Economics.
+
+\bibitem[{Bazzi et~al.(2023)Bazzi, Ferrara, Fiszbein, Pearson, and
+  Testa}]{Bazzietal2023}
+Bazzi, S., A.~Ferrara, M.~Fiszbein, T.~Pearson, and P.~A. Testa. 2023.
+\newblock The Other Great Migration: {S}outhern Whites and the New Right.
+\newblock \emph{Quarterly Journal of Economics} 138(3): 1577--1647.
 
 \bibitem[{Becker et~al.(2026)Becker, Boll, and Voth}]{Beckeretal2026}
 Becker, S.~O., P.~D. Boll, and H.-J. Voth. 2026.
 \newblock Testing and Correcting for Spatial Unit Roots in Regression Analysis.
 \newblock \emph{Stata Journal} 26(2): 177--202.
 
+\bibitem[{Bernini et~al.(2023)Bernini, Facchini, and Testa}]{Berninietal2023}
+Bernini, A., G.~Facchini, and C.~Testa. 2023.
+\newblock Race, Representation, and Local Governments in the {US} {S}outh: The
+  Effect of the {V}oting {R}ights {A}ct.
+\newblock \emph{Journal of Political Economy} 131(4): 994--1056.
+
 \bibitem[{Cameron and Miller(2015)}]{CameronMiller2015}
 Cameron, A.~C., and D.~L. Miller. 2015.
 \newblock A Practitioner's Guide to Cluster-Robust Inference.
 \newblock \emph{Journal of Human Resources} 50(2): 317--372.
 
+\bibitem[{Colella et~al.(2023)Colella, Lalive, Sakalli, and
+  Thoenig}]{Colellaetal2023}
+Colella, F., R.~Lalive, S.~O. Sakalli, and M.~Thoenig. 2023.
+\newblock acreg: Arbitrary Correlation Regression.
+\newblock \emph{Stata Journal} 23(1): 119--147.
+
 \bibitem[{Conley(1999)}]{Conley1999}
 Conley, T. 1999.
 \newblock GMM estimation with cross sectional dependence.
 \newblock \emph{Journal of Econometrics} 92(1): 1--45.
+
+\bibitem[{Correia(2018)}]{Correia2018ivreghdfe}
+Correia, S. 2018.
+\newblock {IVREGHDFE}: Stata module for extended instrumental variable
+  regressions with multiple levels of fixed effects.
+\newblock Statistical Software Components S458530, Boston College Department of
+  Economics.
+
+\bibitem[{Correia and Constantine(2014)}]{Correia2014reghdfe}
+Correia, S., and N.~Constantine. 2014.
+\newblock {REGHDFE}: Stata module to perform linear or instrumental-variable
+  regression absorbing any number of high-dimensional fixed effects.
+\newblock Statistical Software Components S457874, Boston College Department of
+  Economics.
 
 \bibitem[{DellaVigna et~al.(2025)DellaVigna, Imbens, Kim, and
   Ritzwoller}]{Dellavignaetal2025}
@@ -32,6 +71,11 @@ Eicker, F. 1967.
 \newblock Limit theorems for regressions with unequal and dependent errors.
 \newblock In \emph{Proceedings of the Fifth Berkeley Symposium on Mathematical
   Statistics and Probability}, vol.~1,  59--82. University of California Press.
+
+\bibitem[{Funke et~al.(2023)Funke, Schularick, and Trebesch}]{Funkeetal2023}
+Funke, M., M.~Schularick, and C.~Trebesch. 2023.
+\newblock Populist Leaders and the Economy.
+\newblock \emph{American Economic Review} 113(12): 3249--3288.
 
 \bibitem[{Huber(1967)}]{Huber1967}
 Huber, P.~J. 1967.
@@ -69,16 +113,21 @@ Moulton, B.~R. 1986.
   Variables on Micro Units}.
 \newblock \emph{The Review of Economics and Statistics} 72(2): 334--338.
 
-\bibitem[{M{\"u}ller and Watson(2022{\natexlab{a}})}]{MullerWatson2022b}
-M{\"u}ller, U.~K., and M.~W. Watson. 2022{\natexlab{a}}.
+\bibitem[{M{\"u}ller and Watson(2022)}]{MullerWatson2022}
+M{\"u}ller, U.~K., and M.~W. Watson. 2022.
+\newblock Spatial Correlation Robust Inference.
+\newblock \emph{Econometrica} 90(6): 2901--2935.
+
+\bibitem[{M{\"u}ller and Watson(2023)}]{MullerWatson2023}
+---------. 2023.
 \newblock Spatial Correlation Robust Inference in Linear Regression and Panel
   Models.
 \newblock \emph{Journal of Business \& Economic Statistics} 41(4): 1050--1064.
 
-\bibitem[{M{\"u}ller and Watson(2022{\natexlab{b}})}]{MullerWatson2022}
----------. 2022{\natexlab{b}}.
-\newblock Spatial Correlation Robust Inference.
-\newblock \emph{Econometrica} 90(6): 2901--2935.
+\bibitem[{M{\"u}ller and Watson(2024)}]{MullerWatson2024}
+---------. 2024.
+\newblock Spatial Unit Roots and Spurious Regression.
+\newblock \emph{Econometrica} 92(5): 1661--1695.
 
 \bibitem[{Newey and West(1987)}]{neweywest87}
 Newey, W.~K., and K.~D. West. 1987.

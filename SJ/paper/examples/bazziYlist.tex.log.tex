@@ -1,14 +1,3 @@
-. * trimmed: also drop the paper's secondary control sets and the vote counts
-. quietly ds lnpopdens_hist_00 pct_*_00 share_breckinridge pct_bryan_96 oil_190
-> 0 ///
->     oil_1940 AnyMines cottonmed potential_ag_prod d_coa d_riv d_lak elev_mean
->  ///
->     tri_ave tye_tfe890_500k_100_l6 votes_*
-{\smallskip}
-. local secondary `r(varlist)'
-{\smallskip}
-. local ytrim : list ylist - secondary
-{\smallskip}
 . * misuse: add measures of the regressor itself
 . local ymisuse `ylist' pct_Southerners_white1900 pct_Southerners_white_brdr //
 > /

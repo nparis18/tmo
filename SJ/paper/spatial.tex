@@ -88,7 +88,7 @@
 \and
     Damian Clarke\\Department of Economics \\ University of Chile \\ dclarke@fen.uchile.cl
 \and
-    Nicol\'as Par\'is\\Department of Economics \\ University of Chile \\ nparis@fen.uchile.cl
+    Nicol\'as Paris\\Department of Economics \\ University of Chile \\ nparis@fen.uchile.cl
 }
 %TWO OPTIONS?  Second is riff on Cameron Miller piece
 %\title[Inference with Spatial Dependence]{How to Conduct Inference with Spatial Dependence in Stata}
@@ -620,13 +620,7 @@ Steps 4 to 6 are where the workflow branches, and Figure \ref{fig:decision} summ
 We illustrate each step using \citet{Berninietal2023}, a study of the effect of the Voting Rights Act on Black office-holding across 971 Southern counties.  All auxiliary outcomes are drawn from the paper's replication package, so every step below can be reproduced directly from publicly available materials.
 
 \paragraph{Steps 1--3: baseline, outcomes, and the augmented run.}
-The preferred specification of \citet{Berninietal2023}, reported in their Table 2, Column 4, regresses the 1964--1980 change in the share of Black elected officials on the interaction of the 1960 Black population share with federal coverage, together with the Black share, ten county controls and their coverage interactions, and state fixed effects, clustering by judicial division.  Estimating this specification yields $\widehat\theta = 0.103$, with a cluster-robust standard error of $0.045$.  For the auxiliary collection we follow the rules \citet{Dellavignaetal2025} state for this application: take all feasible variables in the replication package, then drop those that are missing for more than half of the estimation sample, those collinear with the right-hand side of the model, and those highly correlated with the main outcome, the regressor of interest, or the primary controls.  The last rule requires a cutoff, which is not specified there; we exclude outcomes whose absolute correlation with any of those variables exceeds $0.8$, and Table \ref{tab:bernylist} below reports what happens when this rule is dropped.  With that cutoff the rules yield $d=60$ auxiliary outcomes, matching the number used in the original analysis, and including, for example, the change in log gubernatorial turnout between 1940 and 1960 and the change in NAACP branches between 1942 and 1964.  The exact list is not published, so the collection is ours rather than theirs, and the outcome-collection sensitivity in Step 7 is reported with that in mind.  The code below estimates the baseline specification and builds the collection.  The candidate list is every numeric variable in the package except identifiers, the outcome and regressor families with their literacy interactions, and the controls; the loop then drops variables missing for more than half of the sample, variables that are constant in the sample, which are collinear with the intercept, and variables above the correlation cutoff.
-
-\begin{stlog}
-\input{examples/berniniSetup.tex.log}
-\end{stlog}
-
-With the collection in hand, the log below runs {\tt tmo} augmenting the original judicial-division clustering:
+The preferred specification of \citet{Berninietal2023}, reported in their Table 2, Column 4, regresses the 1964--1980 change in the share of Black elected officials on the interaction of the 1960 Black population share with federal coverage, together with the Black share, ten county controls and their coverage interactions, and state fixed effects, clustering by judicial division.  Estimating this specification yields $\widehat\theta = 0.103$, with a cluster-robust standard error of $0.045$.  For the auxiliary collection we follow the rules \citet{Dellavignaetal2025} state for this application: take all feasible variables in the replication package, then drop those that are missing for more than half of the estimation sample, those collinear with the right-hand side of the model, and those highly correlated with the main outcome, the regressor of interest, or the primary controls.  The last rule requires a cutoff, which is not specified there; we exclude outcomes whose absolute correlation with any of those variables exceeds $0.8$, and Table \ref{tab:bernylist} below reports what happens when this rule is dropped.  With that cutoff the rules yield $d=60$ auxiliary outcomes, matching the number used in the original analysis, and including, for example, the change in log gubernatorial turnout between 1940 and 1960 and the change in NAACP branches between 1942 and 1964.  The exact list is not published, so the collection is ours rather than theirs, and the outcome-collection sensitivity in Step 7 is reported with that in mind.  Assembling the collection is ordinary data work, and the code is in the replication files; what the command needs is only the resulting varlist, passed through {\tt ylist()}.  The baseline specification is passed through {\tt cmd()} exactly as it would otherwise be estimated, here stored in the local {\tt spec}, and the log below runs {\tt tmo} augmenting the original judicial-division clustering:
 
 \begin{stlog}
 \input{examples/berniniExample.tex.log}
@@ -660,7 +654,7 @@ Two checks should be carried out before any TMO adjustment is used, based on the
 \paragraph{Step 5: establish whether the dependence is geographic.}
 This step determines the choice between corrections.  Using the pair-level file saved by {\tt savedyad}, merge in location characteristics and compute, among the pairs selected by the threshold, the share that are close in geographic distance and in other observable dimensions; comparison with the corresponding shares among all pairs indicates which dimensions organise the detected dependence.  Table \ref{tab:bernpredictors} reports this exercise, following the descriptive approach of Table 1 of \citet{Dellavignaetal2025}.  Geography is clearly at work: relative to all pairs, selected pairs are three times as likely to lie within 150 miles of one another and eight times as likely to share a judicial division.  It is equally clear that geography is insufficient: fewer than a third of selected pairs are within the 150-mile band, similarity in population, poverty, or urbanisation adds little, and roughly 43\%\ of the selected pairs are close on none of the criteria considered.  Both a distance-based correction and TMO therefore have a role in this application.
 
-The code below produces Table \ref{tab:bernpredictors}.  It reruns {\tt tmo} with county centroids so that the pair-level file saved by {\tt savedyad} includes distances, merges the characteristics of both counties into that file, and compares each proximity criterion among the selected pairs and among all pairs.
+The input for this step is written by {\tt savedyad}, which saves one observation per pair of locations with their estimated correlation; adding {\tt latitude()}, {\tt longitude()} and {\tt distthreshold()} to the call records the distance between them as well.  Merging the characteristics of both counties into that file and comparing shares is ordinary data work, and is in the replication files.
 
 \begin{stlog}
 \input{examples/berniniPredictors.tex.log}
@@ -694,7 +688,7 @@ Any of the above                & 56.3\% & 38.0\% \\
 \paragraph{Step 6: compare and, where warranted, combine corrections.}
 Table \ref{tab:berncompare} compares the corrections directly.  Consistent with Step 5, both channels matter here: the Conley correction alone raises the standard error by roughly 40\%, and TMO contributes further pairs beyond the distance band.  This application illustrates the general recommendation: when both geographic and non-geographic dependence are present, the combined estimator provides robustness to both.
 
-The corrections in Table \ref{tab:berncompare} are obtained as follows.  The local {\tt opts} was defined in the previous block and {\tt se0} holds the clustered standard error of the baseline; the short program {\tt tmoline} only prints one row of the table from the results {\tt tmo} stores in {\tt e()}, namely the standard error, its ratio to {\tt se0}, and the share of pairs admitted to the variance.
+The corrections in Table \ref{tab:berncompare} are obtained as follows.  The local {\tt opts} collects the options common to every run, namely {\tt x()}, {\tt ylist()}, {\tt idvar()} and {\tt misslimit()}, and {\tt se0} holds the clustered standard error of the baseline; the short program {\tt tmoline} only prints one row of the table from the results {\tt tmo} leaves in {\tt e()}, namely the standard error, its ratio to {\tt se0}, and the share of pairs admitted to the variance.
 
 \begin{stlog}
 \input{examples/berniniCompare.tex.log}
@@ -725,7 +719,7 @@ TMO + Conley (150 mi)         & 0.063 & 1.42 [9.6\%]  \\
 \paragraph{Step 7: assess sensitivity to the outcome collection, and report it.}
 The choice of auxiliary outcomes is the most consequential decision in the procedure, and errors are possible in both directions: with too few relevant outcomes, correlations are noisily estimated, the null distribution widens, and true non-null pairs are missed, while adding outcomes that do not share the correlation structure of the main outcome pulls the correlation estimates toward zero and dilutes the adjustment.  The degrees-of-freedom statistic, which measures the effective number of independent outcomes rather than the raw count, is the relevant metric, together with the stability of the adjustment across reasonable collections.  Table \ref{tab:bernylist} reports the sensitivity exercise for this application: with and without the correlation cutoff, both defensible readings of the same rules, the diagnostics are essentially unchanged while the ratio moves from $1.15$ to $1.40$.  Because the adjustment inherits this sensitivity, we recommend publishing the auxiliary outcome list verbatim alongside any TMO-adjusted result, as the code accompanying this article does, and reporting the adjustment's range across reasonable collections rather than a single number.
 
-Table \ref{tab:bernylist} is produced by rerunning {\tt tmo} over the collections built in the first block:
+Table \ref{tab:bernylist} is produced by rerunning {\tt tmo} with each collection in turn, changing nothing but {\tt ylist()}:
 
 \begin{stlog}
 \input{examples/berniniYlist.tex.log}
@@ -762,12 +756,6 @@ A second application illustrates the workflow in an instrumental-variables desig
 
 Applying the Step 2 rules to the package yields $d=85$ auxiliary outcomes, among them Republican vote shares in earlier elections, the Southern Black population share, and census, farm and manufacturing variables.  The IV setting adds one requirement: the exclusions must cover the instrument's ingredients as well as the regressor's.  Here the shift-share machinery, meaning the origin-state migrant stocks, the predicted flows and the associated truncation indicators, measures the treatment, and all of it is excluded by the same logic that excludes the regressor family.
 
-The code below estimates the baseline and builds the collection.  It follows the same structure as for the guide application; only the list of excluded variables changes, which here includes the instrument and all of its components.
-
-\begin{stlog}
-\input{examples/bazziSetup.tex.log}
-\end{stlog}
-
 \begin{stlog}
 \input{examples/bazziExample.tex.log}
 \end{stlog}
@@ -795,7 +783,7 @@ The Step 4 checks pass: the estimated degrees of freedom are $26$, above the rec
 
 The Step 5 exercise, reported in Table \ref{tab:bazzipredictors}, shows dependence that is strongly, though incompletely, organised by geography, much as in the county-level guide application.  Selected pairs are six times more likely than average to lie within 150 miles of one another and nine times more likely to share a state, yet the proximity criteria together account for under half of the selected pairs.  The most strongly correlated distant pairs connect opposite ends of the country: Aroostook County, Maine with Santa Clara County, California ($\hat\rho = 0.53$ at roughly 2,700 miles), for example, a pair no distance kernel would admit.
 
-The code below produces Table \ref{tab:bazzipredictors}:
+The pair-level file again comes from {\tt savedyad}:
 
 \begin{stlog}
 \input{examples/bazziPredictors.tex.log}
@@ -860,7 +848,7 @@ TMO + SCPC                        & 0.246 & 1.47          \\
 
 Finally, the Step 7 exercise in Table \ref{tab:bazziylist} probes the collection choice in both directions.  Trimming the collection to $d=60$, by additionally excluding the secondary control sets of the paper's own Table 2 (the 1900 controls and sorting confounds) and the raw vote counts, drops the estimated degrees of freedom to $16$, below the recommended floor.  The resulting ratio happens to be similar here, but the diagnostics correctly flag the trimmed collection as underpowered, and the advice of Section \ref{sscn:guide} applies: prefer the broader defensible collection.  The misuse row adds four measures from the regressor's family; as in the guide application, the reported diagnostics look unremarkable, which is precisely why treatment measures must be excluded by design rather than by inspection.
 
-The collections in Table \ref{tab:bazziylist} are built from the baseline list and evaluated as follows:
+The collections in Table \ref{tab:bazziylist} are evaluated in the same way:
 
 \begin{stlog}
 \input{examples/bazziYlist.tex.log}

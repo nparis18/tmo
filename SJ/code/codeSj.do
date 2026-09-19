@@ -172,8 +172,8 @@ sjlog close, replace
 *    and the numbers it displays must be exactly those in the table.
 *-------------------------------------------------------------------------------
 
-*--- (6a) Steps 1-2: baseline and auxiliary outcomes
-sjlog using "$PPR/examples/bazziSetup.tex", replace
+*--- (6a) Steps 1-2: baseline and auxiliary outcomes.
+*    NOT printed in the paper: ordinary data preparation.
 use "../data/replication/Republican_vote_data.dta", clear
 keep if year==1940
 local controls lnpopdens_hist pct_mfgempl pct_unemploy pct_laborforce ///
@@ -216,7 +216,6 @@ foreach v of local candidates {
     if `maxcorr' < 0.8 local ylist `ylist' `v'
 }
 display "auxiliary outcomes: " wordcount("`ylist'")
-sjlog close, replace
 
 *--- (6b) Step 3: TMO augmenting the original grid clustering, with diagnostics
 sjlog using "$PPR/examples/bazziExample.tex", replace
@@ -225,13 +224,21 @@ tmo, cmd(`spec') x(pct_Southerners_white) ylist(`ylist') i(fips) ///
 sjlog close, replace
 cap erase "$PPR/figures/bazzi_dyad.dta"
 
-*--- (6c) Step 5: are the selected pairs organised by geography? (Table bazzipredictors)
-sjlog using "$PPR/examples/bazziPredictors.tex", replace
+*--- (6c) Step 5: pair-level file behind Table bazzipredictors.  Only the tmo
+*    call is printed; the merge and the tabulation are ordinary data work.
 local opts x(pct_Southerners_white) ylist(`ylist') i(fips) misslimit(0.5)
-quietly tmo, cmd(`spec') `opts' lat(clat10) lon(clon10) distthreshold(150) miles ///
+tempfile bzbase
+quietly save `bzbase'
+
+sjlog using "$PPR/examples/bazziPredictors.tex", replace
+tmo, cmd(`spec') `opts' lat(clat10) lon(clon10) distthreshold(150) miles ///
     savedyad file("bazzi")
 local threshold = e(threshold)
-preserve
+use bazzi_dyad.dta, clear
+describe id1 id2 corr dist
+sjlog close, replace
+
+use `bzbase', clear
 keep fips countyname statefip km_grid_cel_code totpop
 rename (fips countyname statefip km_grid_cel_code totpop) (id1 name1 state1 grid1 pop1)
 tempfile loc1 loc2
@@ -259,8 +266,7 @@ foreach v in within150 samegrid samestate closepop any {
 }
 gsort -selected -dist
 list name1 name2 corr dist in 1/3, noobs clean
-restore
-sjlog close, replace
+use `bzbase', clear
 cap erase "$PPR/bazzi_dyad.dta"
 
 *--- (6d) Step 6: method comparison (Table bazzicompare)
@@ -292,13 +298,15 @@ tmoline "TMO + SCPC" nopairs
 sjlog close, replace
 
 *--- (6e) Step 7: sensitivity to the outcome collection (Table bazziylist)
-sjlog using "$PPR/examples/bazziYlist.tex", replace
-* trimmed: also drop the paper's secondary control sets and the vote counts
+* the trimmed collection drops the paper's secondary control sets and the vote
+* counts; building it is data work and is not printed in the paper
 quietly ds lnpopdens_hist_00 pct_*_00 share_breckinridge pct_bryan_96 oil_1900 ///
     oil_1940 AnyMines cottonmed potential_ag_prod d_coa d_riv d_lak elev_mean ///
     tri_ave tye_tfe890_500k_100_l6 votes_*
 local secondary `r(varlist)'
 local ytrim : list ylist - secondary
+
+sjlog using "$PPR/examples/bazziYlist.tex", replace
 * misuse: add measures of the regressor itself
 local ymisuse `ylist' pct_Southerners_white1900 pct_Southerners_white_brdr ///
     Dpct_Southerners_white D_pct_Southerners_white_00_40
@@ -317,8 +325,9 @@ sjlog close, replace
 *    E.2); the 0.8 correlation cutoff is ours, as the rule gives no number.
 *-------------------------------------------------------------------------------
 
-*--- (7a) Steps 1-2: baseline and auxiliary outcomes
-sjlog using "$PPR/examples/berniniSetup.tex", replace
+*--- (7a) Steps 1-2: baseline and auxiliary outcomes.
+*    NOT printed in the paper: this is ordinary data preparation, and the
+*    guide shows only the code that uses the command itself.
 use "../data/replication/dataset_wide_1.dta", clear
 generate long fips = real(county)
 local controls urbanB60 unemp60 family_less_3000 pop60 school_low ///
@@ -354,7 +363,6 @@ foreach v of local candidates {
 }
 display "auxiliary outcomes: " wordcount("`ylist'") ///
     "   (without the correlation cutoff: " wordcount("`ynocutoff'") ")"
-sjlog close, replace
 
 *--- (7b) Step 3: TMO augmenting the original judicial-division clustering
 sjlog using "$PPR/examples/berniniExample.tex", replace
@@ -363,8 +371,9 @@ tmo, cmd(`spec') x(black_share60_lit_nc) ylist(`ylist') i(fips) ///
 sjlog close, replace
 cap erase "$PPR/figures/bernini_dyad.dta"
 
-*--- (7c) Step 5: are the selected pairs organised by geography? (Table bernpredictors)
-sjlog using "$PPR/examples/berniniPredictors.tex", replace
+*--- (7c) Step 5: pair-level file behind Table bernpredictors.  Only the tmo
+*    call is printed; merging county characteristics into the saved file and
+*    tabulating the shares is ordinary data work.
 preserve
 use GEOID _CX _CY using "../data/maps/cb_2018_us_county_20m.dta", clear
 generate long fips = real(GEOID)
@@ -373,10 +382,18 @@ quietly save `centroids'
 restore
 quietly merge 1:1 fips using `centroids', keep(master match) nogenerate
 local opts x(black_share60_lit_nc) ylist(`ylist') i(fips) misslimit(0.5)
-quietly tmo, cmd(`spec') `opts' lat(_CY) lon(_CX) distthreshold(150) miles ///
+tempfile bernbase
+quietly save `bernbase'
+
+sjlog using "$PPR/examples/berniniPredictors.tex", replace
+tmo, cmd(`spec') `opts' lat(_CY) lon(_CX) distthreshold(150) miles ///
     savedyad file("bernini")
 local threshold = e(threshold)
-preserve
+use bernini_dyad.dta, clear
+describe id1 id2 corr dist
+sjlog close, replace
+
+use `bernbase', clear
 keep fips STATE judicial_divisions_id pop60 family_less_3000 urbanB60
 rename (fips STATE judicial_divisions_id pop60 family_less_3000 urbanB60) ///
     (id1 state1 jdiv1 pop1 pov1 urb1)
@@ -405,8 +422,7 @@ foreach v in within150 samestate samejdiv closepop closepov closeurb any {
     quietly summarize `v'
     display "`v'" _col(14) %4.1f `sel' "%" _col(32) %4.1f 100*r(mean) "%"
 }
-restore
-sjlog close, replace
+use `bernbase', clear
 cap erase "$PPR/bernini_dyad.dta"
 
 *--- (7d) Step 6: method comparison (Table berncompare)

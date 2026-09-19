@@ -1,5 +1,52 @@
-. tmo, cmd(`spec') x(black_share60_lit_nc) ylist(`ylist') i(fips) ///
->     misslimit(0.5) plothist plothistnbins(100) plotse file("figures/bernini")
+. * controls of Table 2, Column 4, each interacted with federal coverage
+. global controls urbanB60 unemp60 family_less_3000 pop60 school_low ///
+>     cotton_suitability cotton_share_land1964 anti_black_county ///
+>     pro_black_county rep_share_1964
+{\smallskip}
+. 
+. * the 60 auxiliary outcomes selected in Step 2
+. global outcomes population60 all_officials_1964 ln_tnt_pres_tot_1940 ///
+>     ln_tnt_pres_tot_1960 county_expenditure57_re_pc county_current57_re_pc //
+> /
+>     county_cap57_re_pc county_expenditure82_re_pc county_current82_re_pc ///
+>     county_cap82_re_pc county_cap_pre county_cap_post county_current_pre ///
+>     county_current_post county_tot_pre county_tot_post ///
+>     ch_AllCountyOfficials ch_AllMunicipality ch_AllEducation ///
+>     naacp_branch_1964_pcb naacp_branch_1942_pcb ch_naacp_64_42_pcb ///
+>     kkk_klavern_64_66_pcw kkk_klavern_15_40_pcw ch_kkk_66_40_pcw ///
+>     black_lynching_1930_1940 black_lynching_1950_1964 ///
+>     ch_black_lynching60_40 ln_tnt_gov_1940 ln_tnt_gov_1960 ///
+>     lndiff_tnt_gov_60_40 lndiff_pop_50_60 lndiff_pop_60_80 ///
+>     urbanchange60_50 urbanchange unemp50 unempchange ruralchange ///
+>     ruralchange60_50 school_lowchange ch_cotton_sh_land_64_45 ///
+>     lndiff_tnt_pres_60_40 ln_rep_share_1960 ln_rep_share_1952 ///
+>     ln_rep_share_1940 lndiff_rep_share_64_40 lndiff_rep_share_60_40 ///
+>     ch_black_share_60_50 lndiff_lower_60_50 lndiff_upper_60_50 ln_lower_60 //
+> /
+>     ln_lower_50 ln_upper_60 ln_upper_50 unempchange60_50 ///
+>     familypovchange60_50 school_lowchange60_50 ln_winner_gov_60 ///
+>     ln_winner_gov_40 lndiff_winner_gov
+{\smallskip}
+. 
+. * the published specification, clustered by judicial division
+. quietly reg ch_ShareBl_AllOfficials black_share60_lit_nc black_share60 ///
+>     c.($controls)\#literacy_nc ibn.STATE, nocon robust ///
+>     cluster(judicial_divisions_id)
+{\smallskip}
+. display "coefficient " \%5.3f _b[black_share60_lit_nc] ///
+>     "    clustered SE " \%5.3f _se[black_share60_lit_nc]
+coefficient 0.103    clustered SE 0.045
+{\smallskip}
+. scalar clustered = _se[black_share60_lit_nc]
+{\smallskip}
+. 
+. * the same specification, with the TMO adjustment and the two diagnostic plot
+> s
+. tmo, cmd(reg ch_ShareBl_AllOfficials black_share60_lit_nc black_share60 ///
+>         c.($controls)\#literacy_nc ibn.STATE, nocon robust ///
+>         cluster(judicial_divisions_id)) ///
+>     x(black_share60_lit_nc) ylist($outcomes) i(fips) misslimit(0.5) ///
+>     plothist plothistnbins(100) plotse file("figures/bernini")
 file {\bftt{figures/bernini_hist.png}} written in PNG format
 Calculating TMO SE over threshold at 0.00
 Calculating TMO SE over threshold at 0.20

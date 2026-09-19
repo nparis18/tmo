@@ -1,52 +1,85 @@
-. capture program drop tmoline
+. * TMO on its own: the command passed to cmd() carries no clustering
+. quietly tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_0
+> 0_2) ///
+>         $controls, robust ///
+>         absorb(statefip dummy_trunmig_hat1_00_2)) ///
+>     x(pct_Southerners_white) ylist($outcomes) i(fips) misslimit(0.5)
 {\smallskip}
-. program tmoline
-  1.     args label option
-  2.     local se = cond("`option'"=="scpc", e(scpc_se), e(tmo_se))
-  3.     display "`label'" _col(16) "SE = " \%5.3f `se' "   ratio = " \%4.2f `se'
-> /se0 _continue
-  4.     if "`option'"=="" display "   pairs = " \%3.1f e(pct_ge_thres) "\%"
-  5.     else display
-  6. end
+. display "TMO            SE " \%5.3f e(tmo_se) "   ratio " \%4.2f e(tmo_se)/clus
+> tered ///
+>     "   pairs " \%4.1f e(pct_ge_thres) "\%"
+TMO            SE 0.205   ratio 1.22   pairs  1.9\%
 {\smallskip}
-. local robust  ivreghdfe Trump_share `iv' `controls', robust `fe'
+. 
+. * TMO augmenting the original grid clustering
+. quietly tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_0
+> 0_2) ///
+>         $controls, cluster(km_grid_cel_code) ///
+>         absorb(statefip dummy_trunmig_hat1_00_2)) ///
+>     x(pct_Southerners_white) ylist($outcomes) i(fips) misslimit(0.5)
 {\smallskip}
-. local bystate ivreghdfe Trump_share `iv' `controls', cluster(statefip) `fe'
+. display "TMO + grid     SE " \%5.3f e(tmo_se) "   ratio " \%4.2f e(tmo_se)/clus
+> tered ///
+>     "   pairs " \%4.1f e(pct_ge_thres) "\%"
+TMO + grid     SE 0.209   ratio 1.25   pairs  2.4\%
 {\smallskip}
-. quietly tmo, cmd(`robust') `opts'
+. 
+. * TMO augmenting state clusters: only the variance option changes
+. quietly tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_0
+> 0_2) ///
+>         $controls, cluster(statefip) ///
+>         absorb(statefip dummy_trunmig_hat1_00_2)) ///
+>     x(pct_Southerners_white) ylist($outcomes) i(fips) misslimit(0.5)
 {\smallskip}
-. tmoline "TMO"
-TMO            SE = 0.205   ratio = 1.22   pairs = 1.9\%
+. display "TMO + state    SE " \%5.3f e(tmo_se) "   ratio " \%4.2f e(tmo_se)/clus
+> tered ///
+>     "   pairs " \%4.1f e(pct_ge_thres) "\%"
+TMO + state    SE 0.241   ratio 1.44   pairs  5.2\%
 {\smallskip}
-. quietly tmo, cmd(`spec') `opts'
+. 
+. * Conley alone, and Conley combined with TMO
+. quietly tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_0
+> 0_2) ///
+>         $controls, cluster(km_grid_cel_code) ///
+>         absorb(statefip dummy_trunmig_hat1_00_2)) ///
+>     x(pct_Southerners_white) ylist($outcomes) i(fips) misslimit(0.5) ///
+>     lat(clat10) lon(clon10) distthreshold(150) miles thresholdoff
 {\smallskip}
-. tmoline "TMO + grid"
-TMO + grid     SE = 0.209   ratio = 1.25   pairs = 2.4\%
+. display "Conley         SE " \%5.3f e(tmo_se) "   ratio " \%4.2f e(tmo_se)/clus
+> tered ///
+>     "   pairs " \%4.1f e(pct_ge_thres) "\%"
+Conley         SE 0.235   ratio 1.41   pairs  4.8\%
 {\smallskip}
-. quietly tmo, cmd(`bystate') `opts'
+. quietly tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_0
+> 0_2) ///
+>         $controls, cluster(km_grid_cel_code) ///
+>         absorb(statefip dummy_trunmig_hat1_00_2)) ///
+>     x(pct_Southerners_white) ylist($outcomes) i(fips) misslimit(0.5) ///
+>     lat(clat10) lon(clon10) distthreshold(150) miles
 {\smallskip}
-. tmoline "TMO + state"
-TMO + state    SE = 0.241   ratio = 1.44   pairs = 5.2\%
+. display "TMO + Conley   SE " \%5.3f e(tmo_se) "   ratio " \%4.2f e(tmo_se)/clus
+> tered ///
+>     "   pairs " \%4.1f e(pct_ge_thres) "\%"
+TMO + Conley   SE 0.240   ratio 1.44   pairs  6.2\%
 {\smallskip}
-. quietly tmo, cmd(`spec') `opts' lat(clat10) lon(clon10) distthreshold(150) mi
-> les thresholdoff
+. 
+. * SCPC: scpc_cmd() takes the regression written for ivregress, which scpc
+. * supports; e(scpc_se) is SCPC on its own and e(tmo_se) the combination
+. quietly tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_0
+> 0_2) ///
+>         $controls, cluster(km_grid_cel_code) ///
+>         absorb(statefip dummy_trunmig_hat1_00_2)) ///
+>     x(pct_Southerners_white) ylist($outcomes) i(fips) misslimit(0.5) ///
+>     lat(clat10) lon(clon10) ///
+>     scpc_cmd(ivregress 2sls Trump_share $controls i.statefip ///
+>     dummy_trunmig_hat1_00_2 (pct_Southerners_white = iv_mig_hat1_00_2), robus
+> t)
 {\smallskip}
-. tmoline "Conley"
-Conley         SE = 0.235   ratio = 1.41   pairs = 4.8\%
+. display "SCPC           SE " \%5.3f e(scpc_se) "   ratio " \%4.2f e(scpc_se)/cl
+> ustered
+SCPC           SE 0.203   ratio 1.21
 {\smallskip}
-. quietly tmo, cmd(`spec') `opts' lat(clat10) lon(clon10) distthreshold(150) mi
-> les
-{\smallskip}
-. tmoline "TMO + Conley"
-TMO + Conley   SE = 0.240   ratio = 1.44   pairs = 6.2\%
-{\smallskip}
-. quietly tmo, cmd(`spec') `opts' lat(clat10) lon(clon10) ///
->     scpc_cmd(ivregress 2sls Trump_share `controls' i.statefip dummy_trunmig_h
-> at1_00_2 `iv', robust)
-{\smallskip}
-. tmoline "SCPC" scpc
-SCPC           SE = 0.203   ratio = 1.21
-{\smallskip}
-. tmoline "TMO + SCPC" nopairs
-TMO + SCPC     SE = 0.246   ratio = 1.47
+. display "TMO + SCPC     SE " \%5.3f e(tmo_se) "   ratio " \%4.2f e(tmo_se)/clus
+> tered
+TMO + SCPC     SE 0.246   ratio 1.47
 {\smallskip}

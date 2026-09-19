@@ -1,28 +1,15 @@
-. tmo, cmd(`spec') `opts' lat(_CY) lon(_CX) distthreshold(150) miles ///
->     savedyad file("bernini")
-(file{\bftt{ bernini_dyad.dta}} not found)
-file{\bftt{ bernini_dyad.dta}} saved
+. * latitude(), longitude() and distthreshold() add the distance between the tw
+> o
+. * locations to the file that savedyad writes, one observation per pair
+. quietly tmo, cmd(reg ch_ShareBl_AllOfficials black_share60_lit_nc black_share
+> 60 ///
+>         c.($controls)\#literacy_nc ibn.STATE, nocon robust ///
+>         cluster(judicial_divisions_id)) ///
+>     x(black_share60_lit_nc) ylist($outcomes) i(fips) misslimit(0.5) ///
+>     lat(_CY) lon(_CX) distthreshold(150) miles savedyad file("bernini")
 {\smallskip}
-Linear Regression with TMO                              Number of obs =    971
-                                                        R-squared     = 0.5162
-                                                        Adj R-squared = 0.5162
-                                                        Root MSE      = 5.1862
-{\smallskip}
-\HLI{13}{\TOPT}\HLI{64}
-c{\tytilde}lOfficials {\VBAR} Coefficient  Std. err.      t    P>|t|     [95\% conf. interval]
-\HLI{13}{\PLUS}\HLI{64}
-black_shar{\tytilde}c {\VBAR}   .1029901   .0634185     1.62   0.107    -.0224668     .228447
-\HLI{13}{\BOTT}\HLI{64}
-\HLI{79}
-                                                                               
-                                                   Optimal threshold      0.522
-                                            \% of off-diag in SE est.      9.602
-                              \% >= threshold (excl. clusters/Conley)      0.558
-                                                          \# outcomes     61.000
-                                                  Degrees of freedom     27.253
-\HLI{79}
-{\smallskip}
-. local threshold = e(threshold)
+. display "selection threshold " \%4.2f e(threshold)
+selection threshold 0.52
 {\smallskip}
 . use bernini_dyad.dta, clear
 {\smallskip}

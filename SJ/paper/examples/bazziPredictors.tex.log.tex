@@ -1,28 +1,12 @@
-. tmo, cmd(`spec') `opts' lat(clat10) lon(clon10) distthreshold(150) miles ///
->     savedyad file("bazzi")
-(file{\bftt{ bazzi_dyad.dta}} not found)
-file{\bftt{ bazzi_dyad.dta}} saved
+. quietly tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_0
+> 0_2) ///
+>         $controls, cluster(km_grid_cel_code) ///
+>         absorb(statefip dummy_trunmig_hat1_00_2)) ///
+>     x(pct_Southerners_white) ylist($outcomes) i(fips) misslimit(0.5) ///
+>     lat(clat10) lon(clon10) distthreshold(150) miles savedyad file("bazzi")
 {\smallskip}
-Linear Regression with TMO                              Number of obs =  1,886
-                                                        R-squared     = 0.4131
-                                                        Adj R-squared = 0.4131
-                                                        Root MSE      = 8.7062
-{\smallskip}
-\HLI{13}{\TOPT}\HLI{64}
- Trump_share {\VBAR} Coefficient  Std. err.      t    P>|t|     [95\% conf. interval]
-\HLI{13}{\PLUS}\HLI{64}
-pct_Southe{\tytilde}e {\VBAR}   1.025748   .2402497     4.27   0.000     .5528231    1.498673
-\HLI{13}{\BOTT}\HLI{64}
-\HLI{79}
-                                                                               
-                                                   Optimal threshold      0.506
-                                            \% of off-diag in SE est.      6.191
-                              \% >= threshold (excl. clusters/Conley)      1.392
-                                                          \# outcomes     86.000
-                                                  Degrees of freedom     25.940
-\HLI{79}
-{\smallskip}
-. local threshold = e(threshold)
+. display "selection threshold " \%4.2f e(threshold)
+selection threshold 0.51
 {\smallskip}
 . use bazzi_dyad.dta, clear
 {\smallskip}

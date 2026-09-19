@@ -1,14 +1,44 @@
-. local ymisuse `ylist' black_share40 black_share50 diffshareblack60_50
+. * the seven outcomes that the 0.8 correlation cutoff removed
+. global dropped all_officials_1980 pop50 urban50 family_less50_2000 familypovc
+> hange ///
+>     school_low50 cotton_share_land1945
 {\smallskip}
-. foreach collection in ylist ynocutoff ymisuse {\lbr}
-  2.     quietly tmo, cmd(`spec') x(black_share60_lit_nc) ylist(``collection'')
->  ///
->         i(fips) misslimit(0.5)
-  3.     display "`collection'" _col(12) "d = " wordcount("``collection''") ///
->         "   df = " \%4.1f e(dof) "   threshold = " \%4.2f e(threshold) ///
->         "   ratio = " \%4.2f e(tmo_se)/se0
-  4. {\rbr}
-ylist      d = 60   df = 27.3   threshold = 0.52   ratio = 1.15
-ynocutoff  d = 67   df = 27.8   threshold = 0.52   ratio = 1.40
-ymisuse    d = 63   df = 27.3   threshold = 0.52   ratio = 1.11
+. 
+. quietly tmo, cmd(reg ch_ShareBl_AllOfficials black_share60_lit_nc black_share
+> 60 ///
+>         c.($controls)\#literacy_nc ibn.STATE, nocon robust ///
+>         cluster(judicial_divisions_id)) ///
+>     x(black_share60_lit_nc) ylist($outcomes) i(fips) misslimit(0.5)
+{\smallskip}
+. display "baseline           outcomes " e(N_outcomes)-1 "   df " \%4.1f e(dof) 
+> ///
+>     "   threshold " \%4.2f e(threshold) "   ratio " \%4.2f e(tmo_se)/clustered
+baseline           outcomes 60   df 27.3   threshold 0.52   ratio 1.15
+{\smallskip}
+. 
+. quietly tmo, cmd(reg ch_ShareBl_AllOfficials black_share60_lit_nc black_share
+> 60 ///
+>         c.($controls)\#literacy_nc ibn.STATE, nocon robust ///
+>         cluster(judicial_divisions_id)) ///
+>     x(black_share60_lit_nc) ylist($outcomes $dropped) i(fips) misslimit(0.5)
+{\smallskip}
+. display "without cutoff     outcomes " e(N_outcomes)-1 "   df " \%4.1f e(dof) 
+> ///
+>     "   threshold " \%4.2f e(threshold) "   ratio " \%4.2f e(tmo_se)/clustered
+without cutoff     outcomes 67   df 27.8   threshold 0.52   ratio 1.40
+{\smallskip}
+. 
+. * misuse: three measures of the regressor itself added to the collection
+. quietly tmo, cmd(reg ch_ShareBl_AllOfficials black_share60_lit_nc black_share
+> 60 ///
+>         c.($controls)\#literacy_nc ibn.STATE, nocon robust ///
+>         cluster(judicial_divisions_id)) ///
+>     x(black_share60_lit_nc) ///
+>     ylist($outcomes black_share40 black_share50 diffshareblack60_50) ///
+>     i(fips) misslimit(0.5)
+{\smallskip}
+. display "misuse             outcomes " e(N_outcomes)-1 "   df " \%4.1f e(dof) 
+> ///
+>     "   threshold " \%4.2f e(threshold) "   ratio " \%4.2f e(tmo_se)/clustered
+misuse             outcomes 63   df 27.3   threshold 0.52   ratio 1.11
 {\smallskip}

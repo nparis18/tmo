@@ -1,40 +1,28 @@
-. quietly tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_0
-> 0_2) ///
->         $controls, cluster(km_grid_cel_code) ///
->         absorb(statefip dummy_trunmig_hat1_00_2)) ///
->     x(pct_Southerners_white) ylist($outcomes) i(fips) misslimit(0.5)
+. display "                   d      df  thresh   ratio"
+                   d      df  thresh   ratio
 {\smallskip}
-. display "baseline           outcomes " e(N_outcomes)-1 "   df " \%4.1f e(dof) 
-> ///
->     "   threshold " \%4.2f e(threshold) "   ratio " \%4.2f e(tmo_se)/clustered
-baseline           outcomes 85   df 25.9   threshold 0.51   ratio 1.25
+. quietly tmo, cmd(ivreghdfe $model, $grid $fe) x(pct_Southerners_white) ///
+>     ylist($outcomes) i(fips) misslimit(0.5)
 {\smallskip}
-. 
+. di "baseline      " e(N_outcomes)-1 \%7.1f e(dof) \%7.2f e(threshold) \%7.2f e(t
+> mo_se)/base
+baseline      85   25.9   0.51   1.25
+{\smallskip}
 . * $trimmed drops the 1900 controls, the sorting confounds and the vote counts
-. quietly tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_0
-> 0_2) ///
->         $controls, cluster(km_grid_cel_code) ///
->         absorb(statefip dummy_trunmig_hat1_00_2)) ///
->     x(pct_Southerners_white) ylist($trimmed) i(fips) misslimit(0.5)
+. quietly tmo, cmd(ivreghdfe $model, $grid $fe) x(pct_Southerners_white) ///
+>     ylist($trimmed) i(fips) misslimit(0.5)
 {\smallskip}
-. display "trimmed            outcomes " e(N_outcomes)-1 "   df " \%4.1f e(dof) 
-> ///
->     "   threshold " \%4.2f e(threshold) "   ratio " \%4.2f e(tmo_se)/clustered
-trimmed            outcomes 60   df 15.8   threshold 0.64   ratio 1.27
+. di "trimmed       " e(N_outcomes)-1 \%7.1f e(dof) \%7.2f e(threshold) \%7.2f e(t
+> mo_se)/base
+trimmed       60   15.8   0.64   1.27
 {\smallskip}
-. 
 . * misuse: four measures of the regressor itself added to the collection
-. quietly tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_0
-> 0_2) ///
->         $controls, cluster(km_grid_cel_code) ///
->         absorb(statefip dummy_trunmig_hat1_00_2)) ///
->     x(pct_Southerners_white) ///
+. quietly tmo, cmd(ivreghdfe $model, $grid $fe) x(pct_Southerners_white) ///
 >     ylist($outcomes pct_Southerners_white1900 pct_Southerners_white_brdr ///
->     Dpct_Southerners_white D_pct_Southerners_white_00_40) ///
->     i(fips) misslimit(0.5)
+>     Dpct_Southerners_white D_pct_Southerners_white_00_40) i(fips) misslimit(0
+> .5)
 {\smallskip}
-. display "misuse             outcomes " e(N_outcomes)-1 "   df " \%4.1f e(dof) 
-> ///
->     "   threshold " \%4.2f e(threshold) "   ratio " \%4.2f e(tmo_se)/clustered
-misuse             outcomes 89   df 27.8   threshold 0.49   ratio 1.21
+. di "misuse        " e(N_outcomes)-1 \%7.1f e(dof) \%7.2f e(threshold) \%7.2f e(t
+> mo_se)/base
+misuse        89   27.8   0.49   1.21
 {\smallskip}

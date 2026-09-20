@@ -1,9 +1,6 @@
-. quietly tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_0
-> 0_2) ///
->         $controls, cluster(km_grid_cel_code) ///
->         absorb(statefip dummy_trunmig_hat1_00_2)) ///
->     x(pct_Southerners_white) ylist($outcomes) i(fips) misslimit(0.5) ///
->     lat(clat10) lon(clon10) distthreshold(150) miles savedyad file("bazzi")
+. quietly tmo, cmd(ivreghdfe $model, $grid $fe) x(pct_Southerners_white) ///
+>     ylist($outcomes) i(fips) misslimit(0.5) lat(clat10) lon(clon10) ///
+>     distthreshold(150) miles savedyad file("bazzi")
 {\smallskip}
 . display "selection threshold " \%4.2f e(threshold)
 selection threshold 0.51

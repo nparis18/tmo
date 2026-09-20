@@ -1,85 +1,52 @@
-. * TMO on its own: the command passed to cmd() carries no clustering
-. quietly tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_0
-> 0_2) ///
->         $controls, robust ///
->         absorb(statefip dummy_trunmig_hat1_00_2)) ///
->     x(pct_Southerners_white) ylist($outcomes) i(fips) misslimit(0.5)
+. display "                  SE   ratio  pairs"
+                  SE   ratio  pairs
 {\smallskip}
-. display "TMO            SE " \%5.3f e(tmo_se) "   ratio " \%4.2f e(tmo_se)/clus
-> tered ///
->     "   pairs " \%4.1f e(pct_ge_thres) "\%"
-TMO            SE 0.205   ratio 1.22   pairs  1.9\%
+. * the variance option of the command inside cmd() is all that changes
+. quietly tmo, cmd(ivreghdfe $model, robust $fe) x(pct_Southerners_white) ///
+>     ylist($outcomes) i(fips) misslimit(0.5)
 {\smallskip}
-. 
-. * TMO augmenting the original grid clustering
-. quietly tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_0
-> 0_2) ///
->         $controls, cluster(km_grid_cel_code) ///
->         absorb(statefip dummy_trunmig_hat1_00_2)) ///
->     x(pct_Southerners_white) ylist($outcomes) i(fips) misslimit(0.5)
+. di "TMO          " \%5.3f e(tmo_se) \%7.2f e(tmo_se)/base \%6.1f e(pct_ge_thres)
+TMO          0.205   1.22   1.9
 {\smallskip}
-. display "TMO + grid     SE " \%5.3f e(tmo_se) "   ratio " \%4.2f e(tmo_se)/clus
-> tered ///
->     "   pairs " \%4.1f e(pct_ge_thres) "\%"
-TMO + grid     SE 0.209   ratio 1.25   pairs  2.4\%
+. quietly tmo, cmd(ivreghdfe $model, $grid $fe) x(pct_Southerners_white) ///
+>     ylist($outcomes) i(fips) misslimit(0.5)
 {\smallskip}
-. 
-. * TMO augmenting state clusters: only the variance option changes
-. quietly tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_0
-> 0_2) ///
->         $controls, cluster(statefip) ///
->         absorb(statefip dummy_trunmig_hat1_00_2)) ///
->     x(pct_Southerners_white) ylist($outcomes) i(fips) misslimit(0.5)
+. di "TMO + grid   " \%5.3f e(tmo_se) \%7.2f e(tmo_se)/base \%6.1f e(pct_ge_thres)
+TMO + grid   0.209   1.25   2.4
 {\smallskip}
-. display "TMO + state    SE " \%5.3f e(tmo_se) "   ratio " \%4.2f e(tmo_se)/clus
-> tered ///
->     "   pairs " \%4.1f e(pct_ge_thres) "\%"
-TMO + state    SE 0.241   ratio 1.44   pairs  5.2\%
+. quietly tmo, cmd(ivreghdfe $model, cluster(statefip) $fe) x(pct_Southerners_w
+> hite) ///
+>     ylist($outcomes) i(fips) misslimit(0.5)
 {\smallskip}
-. 
+. di "TMO + state  " \%5.3f e(tmo_se) \%7.2f e(tmo_se)/base \%6.1f e(pct_ge_thres)
+TMO + state  0.241   1.44   5.2
+{\smallskip}
 . * Conley alone, and Conley combined with TMO
-. quietly tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_0
-> 0_2) ///
->         $controls, cluster(km_grid_cel_code) ///
->         absorb(statefip dummy_trunmig_hat1_00_2)) ///
->     x(pct_Southerners_white) ylist($outcomes) i(fips) misslimit(0.5) ///
->     lat(clat10) lon(clon10) distthreshold(150) miles thresholdoff
+. quietly tmo, cmd(ivreghdfe $model, $grid $fe) x(pct_Southerners_white) ///
+>     ylist($outcomes) i(fips) misslimit(0.5) lat(clat10) lon(clon10) ///
+>     distthreshold(150) miles thresholdoff
 {\smallskip}
-. display "Conley         SE " \%5.3f e(tmo_se) "   ratio " \%4.2f e(tmo_se)/clus
-> tered ///
->     "   pairs " \%4.1f e(pct_ge_thres) "\%"
-Conley         SE 0.235   ratio 1.41   pairs  4.8\%
+. di "Conley       " \%5.3f e(tmo_se) \%7.2f e(tmo_se)/base \%6.1f e(pct_ge_thres)
+Conley       0.235   1.41   4.8
 {\smallskip}
-. quietly tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_0
-> 0_2) ///
->         $controls, cluster(km_grid_cel_code) ///
->         absorb(statefip dummy_trunmig_hat1_00_2)) ///
->     x(pct_Southerners_white) ylist($outcomes) i(fips) misslimit(0.5) ///
->     lat(clat10) lon(clon10) distthreshold(150) miles
+. quietly tmo, cmd(ivreghdfe $model, $grid $fe) x(pct_Southerners_white) ///
+>     ylist($outcomes) i(fips) misslimit(0.5) lat(clat10) lon(clon10) ///
+>     distthreshold(150) miles
 {\smallskip}
-. display "TMO + Conley   SE " \%5.3f e(tmo_se) "   ratio " \%4.2f e(tmo_se)/clus
-> tered ///
->     "   pairs " \%4.1f e(pct_ge_thres) "\%"
-TMO + Conley   SE 0.240   ratio 1.44   pairs  6.2\%
+. di "TMO + Conley " \%5.3f e(tmo_se) \%7.2f e(tmo_se)/base \%6.1f e(pct_ge_thres)
+TMO + Conley 0.240   1.44   6.2
 {\smallskip}
-. 
-. * SCPC: scpc_cmd() takes the regression written for ivregress, which scpc
-. * supports; e(scpc_se) is SCPC on its own and e(tmo_se) the combination
-. quietly tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_0
-> 0_2) ///
->         $controls, cluster(km_grid_cel_code) ///
->         absorb(statefip dummy_trunmig_hat1_00_2)) ///
->     x(pct_Southerners_white) ylist($outcomes) i(fips) misslimit(0.5) ///
->     lat(clat10) lon(clon10) ///
+. * scpc_cmd() takes the regression written for ivregress, which scpc supports;
+. * e(scpc_se) is SCPC on its own and e(tmo_se) the combination
+. quietly tmo, cmd(ivreghdfe $model, $grid $fe) x(pct_Southerners_white) ///
+>     ylist($outcomes) i(fips) misslimit(0.5) lat(clat10) lon(clon10) ///
 >     scpc_cmd(ivregress 2sls Trump_share $controls i.statefip ///
 >     dummy_trunmig_hat1_00_2 (pct_Southerners_white = iv_mig_hat1_00_2), robus
 > t)
 {\smallskip}
-. display "SCPC           SE " \%5.3f e(scpc_se) "   ratio " \%4.2f e(scpc_se)/cl
-> ustered
-SCPC           SE 0.203   ratio 1.21
+. di "SCPC         " \%5.3f e(scpc_se) \%7.2f e(scpc_se)/base
+SCPC         0.203   1.21
 {\smallskip}
-. display "TMO + SCPC     SE " \%5.3f e(tmo_se) "   ratio " \%4.2f e(tmo_se)/clus
-> tered
-TMO + SCPC     SE 0.246   ratio 1.47
+. di "TMO + SCPC   " \%5.3f e(tmo_se) \%7.2f e(tmo_se)/base
+TMO + SCPC   0.246   1.47
 {\smallskip}

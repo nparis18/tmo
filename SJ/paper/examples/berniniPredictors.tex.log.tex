@@ -1,12 +1,9 @@
-. * latitude(), longitude() and distthreshold() add the distance between the tw
-> o
-. * locations to the file that savedyad writes, one observation per pair
-. quietly tmo, cmd(reg ch_ShareBl_AllOfficials black_share60_lit_nc black_share
-> 60 ///
->         c.($controls)\#literacy_nc ibn.STATE, nocon robust ///
->         cluster(judicial_divisions_id)) ///
->     x(black_share60_lit_nc) ylist($outcomes) i(fips) misslimit(0.5) ///
->     lat(_CY) lon(_CX) distthreshold(150) miles savedyad file("bernini")
+. * with coordinates and a cutoff, savedyad writes one observation per pair of
+. * counties, with their correlation and the distance between them
+. quietly tmo, cmd(reg $model, $vce) x(black_share60_lit_nc) ylist($outcomes) /
+> //
+>     i(fips) misslimit(0.5) lat(_CY) lon(_CX) distthreshold(150) miles ///
+>     savedyad file("bernini")
 {\smallskip}
 . display "selection threshold " \%4.2f e(threshold)
 selection threshold 0.52

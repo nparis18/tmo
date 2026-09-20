@@ -1,8 +1,15 @@
-. * the historical controls of Table 2, Panel A
+. * the pieces of the published specification (Table 2, Panel A, Column 4):
+. * historical controls, the shift-share instrument, and the fixed effects
 . global controls lnpopdens_hist pct_mfgempl pct_unemploy pct_laborforce ///
 >     pct_btot pct_popmexico pct_popgerman pct_popcanada pct_popireland ///
 >     pct_popitaly pct_farmacres pct_farmvalue pct_wilson_12 ///
 >     pct_cwenlistment pct_cwmortality
+{\smallskip}
+. global model Trump_share (pct_Southerners_white = iv_mig_hat1_00_2) $controls
+{\smallskip}
+. global fe absorb(statefip dummy_trunmig_hat1_00_2)
+{\smallskip}
+. global grid cluster(km_grid_cel_code)
 {\smallskip}
 . 
 . * the 85 auxiliary outcomes selected in Step 2
@@ -16,36 +23,30 @@
 >     votes_dem_92 votes_total_92 pct_cleveland_92 votes_dem_96 ///
 >     votes_total_96 pct_bryan_96 votes_dem_12 votes_total_12 urban ///
 >     elev_mean d_coa d_riv d_lak tri_ave potential_ag_prod ///
->     tye_tfe890_500k_100_l6 pct_mfgempl_00 pct_popcanada_00 pct_popitaly_00 //
-> /
->     pct_farmacres_00 pct_farmvalue_00 alfalfa_suit wheat_suit pulses_suit ///
->     cotton_suit potato_suit sweetpotato_suit oats_suit maize_suit ///
->     tobacco_suit cottonmed votes_breckinridge share_breckinridge ///
->     popmale1344 nbenlisted nbdead china_shock oil_1940 oil_1900 AnyMines ///
->     pct_Southerners_black1900 popsqmi1860 Northerners_white ///
->     pct_Northerners_white Dpct_Northerners_white
+>     tye_tfe890_500k_100_l6 pct_mfgempl_00 pct_popcanada_00 ///
+>     pct_popitaly_00 pct_farmacres_00 pct_farmvalue_00 alfalfa_suit ///
+>     wheat_suit pulses_suit cotton_suit potato_suit sweetpotato_suit ///
+>     oats_suit maize_suit tobacco_suit cottonmed votes_breckinridge ///
+>     share_breckinridge popmale1344 nbenlisted nbdead china_shock ///
+>     oil_1940 oil_1900 AnyMines pct_Southerners_black1900 popsqmi1860 ///
+>     Northerners_white pct_Northerners_white Dpct_Northerners_white
 {\smallskip}
 . 
-. * the published specification: shift-share IV, state and truncation-dummy
-. * fixed effects, standard errors clustered by 60x60-mile grid cell
-. quietly ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_00_2) ///
->     $controls, cluster(km_grid_cel_code) ///
->     absorb(statefip dummy_trunmig_hat1_00_2)
+. * the published estimate, and the standard error TMO will be compared against
+. quietly ivreghdfe $model, $grid $fe
 {\smallskip}
 . display "coefficient " \%5.3f _b[pct_Southerners_white] ///
 >     "    clustered SE " \%5.3f _se[pct_Southerners_white]
 coefficient 1.026    clustered SE 0.167
 {\smallskip}
-. scalar clustered = _se[pct_Southerners_white]
+. scalar base = _se[pct_Southerners_white]
 {\smallskip}
 . 
-. * the same specification with the TMO adjustment; cmd() takes the IV command
-. * unchanged and x() names the endogenous regressor
-. tmo, cmd(ivreghdfe Trump_share (pct_Southerners_white = iv_mig_hat1_00_2) ///
->         $controls, cluster(km_grid_cel_code) ///
->         absorb(statefip dummy_trunmig_hat1_00_2)) ///
->     x(pct_Southerners_white) ylist($outcomes) i(fips) misslimit(0.5) ///
->     plothist plothistnbins(100) plotse file("figures/bazzi")
+. * the same specification with TMO: cmd() takes the IV command unchanged and
+. * x() names the endogenous regressor
+. tmo, cmd(ivreghdfe $model, $grid $fe) x(pct_Southerners_white) ///
+>     ylist($outcomes) i(fips) misslimit(0.5) plothist plotse file("figures/baz
+> zi")
 file {\bftt{figures/bazzi_hist.png}} written in PNG format
 Calculating TMO SE over threshold at 0.00
 Calculating TMO SE over threshold at 0.20

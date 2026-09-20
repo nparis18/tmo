@@ -1,41 +1,28 @@
-. * Conley alone: thresholdoff switches the TMO selection off, leaving the
-. * distance band
-. quietly tmo, cmd(reg ch_ShareBl_AllOfficials black_share60_lit_nc black_share
-> 60 ///
->         c.($controls)\#literacy_nc ibn.STATE, nocon robust ///
->         cluster(judicial_divisions_id)) ///
->     x(black_share60_lit_nc) ylist($outcomes) i(fips) misslimit(0.5) ///
->     lat(_CY) lon(_CX) distthreshold(150) miles thresholdoff
+. display "                  SE   ratio  pairs"
+                  SE   ratio  pairs
 {\smallskip}
-. display "Conley         SE " \%5.3f e(tmo_se) "   ratio " \%4.2f e(tmo_se)/clus
-> tered ///
->     "   pairs " \%4.1f e(pct_ge_thres) "\%"
-Conley         SE 0.063   ratio 1.41   pairs  9.0\%
+. * Conley alone: thresholdoff switches the TMO selection off
+. quietly tmo, cmd(reg $model, $vce) x(black_share60_lit_nc) ylist($outcomes) /
+> //
+>     i(fips) misslimit(0.5) lat(_CY) lon(_CX) distthreshold(150) miles thresho
+> ldoff
 {\smallskip}
-. 
+. di "Conley       " \%5.3f e(tmo_se) \%7.2f e(tmo_se)/base \%6.1f e(pct_ge_thres)
+Conley       0.063   1.41   9.0
+{\smallskip}
 . * TMO augmenting the original clustering
-. quietly tmo, cmd(reg ch_ShareBl_AllOfficials black_share60_lit_nc black_share
-> 60 ///
->         c.($controls)\#literacy_nc ibn.STATE, nocon robust ///
->         cluster(judicial_divisions_id)) ///
->     x(black_share60_lit_nc) ylist($outcomes) i(fips) misslimit(0.5)
+. quietly tmo, cmd(reg $model, $vce) x(black_share60_lit_nc) ylist($outcomes) /
+> //
+>     i(fips) misslimit(0.5)
 {\smallskip}
-. display "TMO            SE " \%5.3f e(tmo_se) "   ratio " \%4.2f e(tmo_se)/clus
-> tered ///
->     "   pairs " \%4.1f e(pct_ge_thres) "\%"
-TMO            SE 0.051   ratio 1.15   pairs  1.6\%
+. di "TMO          " \%5.3f e(tmo_se) \%7.2f e(tmo_se)/base \%6.1f e(pct_ge_thres)
+TMO          0.051   1.15   1.6
 {\smallskip}
-. 
 . * both: a pair enters if it is within the band or if its outcomes co-move
-. quietly tmo, cmd(reg ch_ShareBl_AllOfficials black_share60_lit_nc black_share
-> 60 ///
->         c.($controls)\#literacy_nc ibn.STATE, nocon robust ///
->         cluster(judicial_divisions_id)) ///
->     x(black_share60_lit_nc) ylist($outcomes) i(fips) misslimit(0.5) ///
->     lat(_CY) lon(_CX) distthreshold(150) miles
+. quietly tmo, cmd(reg $model, $vce) x(black_share60_lit_nc) ylist($outcomes) /
+> //
+>     i(fips) misslimit(0.5) lat(_CY) lon(_CX) distthreshold(150) miles
 {\smallskip}
-. display "TMO + Conley   SE " \%5.3f e(tmo_se) "   ratio " \%4.2f e(tmo_se)/clus
-> tered ///
->     "   pairs " \%4.1f e(pct_ge_thres) "\%"
-TMO + Conley   SE 0.063   ratio 1.42   pairs  9.6\%
+. di "TMO + Conley " \%5.3f e(tmo_se) \%7.2f e(tmo_se)/base \%6.1f e(pct_ge_thres)
+TMO + Conley 0.063   1.42   9.6
 {\smallskip}

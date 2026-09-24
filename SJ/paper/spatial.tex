@@ -88,24 +88,24 @@
 \and
     Damian Clarke\\Department of Economics \\ University of Chile \\ dclarke@fen.uchile.cl
 \and
-    Nicol\'as Paris\\Department of Economics \\ University of Chile \\ nparis@fen.uchile.cl
+    Nicol\'as Par\'is\\Department of Economics \\ University of Chile \\ nparis@fen.uchile.cl
 }
 %TWO OPTIONS?  Second is riff on Cameron Miller piece
 %\title[Inference with Spatial Dependence]{How to Conduct Inference with Spatial Dependence in Stata}
-\title[Inference with Spatial Dependence]{A Practitioner's Guide to Inference with Spatial Dependence}
+\title[Inference with Spatial Dependence]{Inference with Spatial Dependence: An Introduction to the Thresholding Multiple Outcomes Procedure}
 \maketitle
 
 \begin{abstract}
-  In many empirical applications in the social sciences, individuals-level observations interact or are subject to shared shocks across space.  In order to conduct valid statistical inference, such spatial dependence must be accounted for.  While a number of strategies to account for spatial dependence exist, these typically are based on strict assumptions about delimitation of dependence within certain geographic areas (\textit{i.e.}\ clustering), or modelling dependence solely in terms of distance.  In this paper, we discuss these common forms of inference with spatial dependence and their drawbacks, and introduce an alternative form of inference, laid out in \citet{Dellavignaetal2025}, known as Thresholding Multiple Outcomes (TMO).  This procedure for inference models dependence by using information from a range of variables to infer the dependence between units across space, and constructs standard errors and confidence intervals based on such dependence.  We introduce the command {\tt tmo}, which implements these procedures in Stata for a range of linear models including OLS and 2SLS. 
+  In many empirical applications in the social sciences, individual-level observations interact, or are subject to shared shocks, across space.  In order to conduct valid statistical inference, such spatial dependence must be accounted for.  While a number of strategies to account for spatial dependence exist, these typically are based on strict assumptions about delimitation of dependence within certain geographic areas (\textit{i.e.}\ clustering), or modelling dependence solely in terms of distance.  In this paper, we discuss these common forms of inference with spatial dependence and their drawbacks, and introduce an alternative form of inference, laid out in \citet{Dellavignaetal2025}, known as Thresholding Multiple Outcomes (TMO).  This procedure for inference models dependence by using information from a range of variables to infer the dependence between units across space, and constructs standard errors and confidence intervals which account for such dependence.  We introduce the command {\tt tmo}, which implements these procedures in Stata for a range of linear models including OLS and 2SLS. 
   \keywords{\inserttag spatial dependence, inference, multiple outcomes, standard errors.}
 \end{abstract}
 
 
 \clearpage
 \section{Introduction}
-Spatial dependence is a common feature of data in the social sciences.  Interactions between individuals in their neighbourhoods, cities, states or other social networks typically imply that individuals cannot be viewed as independent observations in space. And even absent direct interactions between individuals, shared underlying shocks typically occur in areas which are linked across potentially quite broad areas of space, and potentially in quite a complex fashion.  Productivity shocks in one region propagate to others through trade and labour-market linkages, policies adopted in one jurisdiction shape both policy adoption and outcomes elsewhere, and common shocks such as weather events, commodity price movements and health crises strike collections of locations that need not be contiguous.  Importantly, the locations which co-move need not be near neighbours: two distant, but economically similar, agricultural counties may respond to a commodity price shock far more similarly than two adjacent counties, one urban and one rural.
+Spatial dependence is a common feature of data in the social sciences.  Interactions between individuals in their neighbourhoods, cities, states or other social networks typically imply that individuals cannot be viewed as independent across space. And even absent direct interactions between individuals, shared underlying shocks typically occur in areas which are linked across potentially quite broad areas, and potentially in quite a complex fashion.  Productivity shocks in one region propagate to others through trade and labour-market linkages, policies adopted in one jurisdiction shape both policy adoption and outcomes elsewhere, and common shocks such as weather or climatic events events, natural disasters, commodity price movements and health crises strike collections of locations that need not be contiguous.  Importantly, locations which are subject to common shocks need not be geographic neighbours.  For example, two distant, but economically similar, agricultural counties may respond to a commodity price shock far more similarly than two adjacent counties, one urban and one rural.
 
-Such spatial dependence must be accounted for if one wishes to conduct inference on parameters estimated in econometric models.  Variance-covariance estimators in commonly estimated econometric models such as ordinary least squares (OLS) and two stage least squares (2SLS) typically start from the assumption of independence, but must be relaxed to account for more realistic interactions among observations across space. If such adjustments are not made, standard errors will be mis-estimated, generally resulting in standard errors which are too small, and confidence intervals which are too narrow.
+Such dependence across units must be accounted for if one wishes to conduct inference on parameters estimated in econometric models.  Variance-covariance estimators in commonly estimated econometric models such as ordinary least squares (OLS) and two stage least squares (2SLS) typically start from the assumption of independence, but must be relaxed to account for more realistic interactions among observations across space. If such adjustments are not made, standard errors will be mis-estimated, generally resulting in standard errors which are too small, and confidence intervals which are too narrow.
 
 In this paper we lay out considerations for conducting inference in models where spatial dependence among observations is suspected.  We discuss a number of existing common procedures and their limitations, and lay out a new procedure for inference with spatial correlation variance which leverages multiple outcome measures.  This procedure, referred to as Thresholding Multiple Outcomes (TMO) is described in \citet{Dellavignaetal2025} (and in this paper), and is accompanied by a Stata routine {\tt tmo} designed for a range of commonly encountered estimation methods in Stata which we document here.
 
@@ -117,7 +117,7 @@ Both families, however, impose \textit{a priori} that dependence is organised by
 
 To see how these approaches differ, consider a representative county: Tulsa, Oklahoma.  Figure \ref{fig:illustration} displays, for each of the four procedures discussed above, which other counties enter the variance calculation for a regression using county-level data, and with what weight.  Clustering by state (panel a) admits arbitrary correlation between Tulsa and the rest of Oklahoma, and nothing else.  The Conley approach (panel b) weights counties by a declining function of their distance to Tulsa, reaching zero at 150 miles: dependence is assumed strongest nearby, and absent far away.  SCPC (panel c) is displayed through its implicit pair-level kernel: because inference is based on a handful of smooth, low-frequency spatial components, \textit{every} county in the sample receives some weight, largest in a broad region around Tulsa and varying smoothly over the whole map, with no threshold and no cutoff.  TMO (panel d) is the mirror image: using 90 auxiliary county-level outcomes, it identifies the small set of counties whose outcomes systematically co-move with Tulsa's (about 0.5\% of all pairs sample-wide), and allows arbitrary correlation with those counties only, wherever they happen to be on the map, including far beyond any distance cutoff.
 
-\begin{figure}[H]
+\begin{figure}[ht!]
     \centering
     \caption{Spatial Standard Error Procedures}
     \label{fig:illustration}
@@ -144,7 +144,11 @@ To see how these approaches differ, consider a representative county: Tulsa, Okl
       \caption{TMO}
       \label{fig:tmo}
     \end{subfigure}
+    \floatfoot{\textbf{Notes}: Each panel documents unit, as well as their relative weighting, under alternative inference procedures which account for dependence across geographic units.  In each case, covariance terms are presented corresponding to an arbitrarily chosen US county (Tulsa, Oklahoma).}  %Panel (a) documents state-level clustering, }
   \end{figure}
+  %DC: What precise quantities do we present in SCPC, Conley, and SCPC.  Can add to note above to indicate this.
+  %DC: Consider an appendix showing code?
+  %DC: Let's fix the legend of Conly and TMO so there are 0s before decimal points such as .8334, and only 3 decimal points shown (eg 0.833, 1)
 
 In this paper we provide a primer on estimating standard errors under spatial dependence in Stata, introduce the TMO procedure of \citet{Dellavignaetal2025} and its implementation in the {\tt tmo} command, and work through a series of examples based on a rich collection of U.S.\ county-level outcomes.  A distinguishing feature of the command is that TMO need not displace existing practice: it can \textit{augment} clustered, distance-based, or SCPC inference, adding to the variance calculation those pairs of locations whose auxiliary outcomes reveal dependence that the baseline procedure would miss.  We document these combinations, alongside cross-sectional, instrumental variables, and panel implementations.
 
@@ -628,7 +632,6 @@ The preferred specification of \citet{Berninietal2023}, reported in their Table 
 
 \paragraph{Step 4: inspect the diagnostic figures.}
 Two checks should be carried out before any TMO adjustment is used, based on the figures produced by {\tt plothist} and {\tt plotse} and displayed in Figure \ref{fig:berndiag}.  In the correlation histogram (panel a), verify that: (i) the centre of the distribution is symmetric, unimodal, and closely tracked by the fitted Gaussian null, since the central mass is dominated by null pairs and a skewed or poorly-fitted centre indicates excessive common correlation across the auxiliary outcomes, which invalidates the estimated null; (ii) there is visible excess mass in the tails relative to the fitted null, which is the evidence of non-null pairs that the procedure is designed to capture; and (iii) the implied degrees of freedom ($\widehat{df}=1/\hat{v}$, reported in the output) reach at least 20, with larger values advisable in panel settings.  In the threshold plot (panel b), verify that: (i) the curve is smooth and forms a plateau around $\hat\delta^\star$, so that the reported adjustment does not depend on the exact threshold; (ii) the ratio tends to one as $\delta\to 1$, since with no pairs selected the baseline standard error must be recovered; and (iii) erratic movement is confined to low thresholds, where selection is dominated by noise pairs.  Both checks pass here: the fit is adequate with clear tail excess and $\widehat{df}=27$, above the recommended floor, and the curve is stable around $\hat\delta^\star=0.52$.  When either check fails, the appropriate response is a larger or more relevant collection of outcomes, not a different threshold.
-
 \begin{figure}[H]
   \centering
   \caption{Diagnostics for the application to \citet{Berninietal2023}}
@@ -654,7 +657,7 @@ Two checks should be carried out before any TMO adjustment is used, based on the
 \paragraph{Step 5: establish whether the dependence is geographic.}
 This step determines the choice between corrections.  Using the pair-level file saved by {\tt savedyad}, merge in location characteristics and compute, among the pairs selected by the threshold, the share that are close in geographic distance and in other observable dimensions; comparison with the corresponding shares among all pairs indicates which dimensions organise the detected dependence.  Table \ref{tab:bernpredictors} reports this exercise, following the descriptive approach of Table 1 of \citet{Dellavignaetal2025}.  Geography is clearly at work: relative to all pairs, selected pairs are three times as likely to lie within 150 miles of one another and eight times as likely to share a judicial division.  It is equally clear that geography is insufficient: fewer than a third of selected pairs are within the 150-mile band, similarity in population, poverty, or urbanisation adds little, and roughly 43\%\ of the selected pairs are close on none of the criteria considered.  Both a distance-based correction and TMO therefore have a role in this application.
 
-The input for this step is written by {\tt savedyad}, which saves one observation per pair of locations with their estimated correlation; adding {\tt latitude()}, {\tt longitude()} and {\tt distthreshold()} to the call records the distance between them as well.  Merging the characteristics of both counties into that file and comparing shares is ordinary data work, and is in the replication files.
+The input for this step is written by {\tt savedyad}, which saves one observation per pair of locations with their estimated correlation; adding {\tt latitude()}, {\tt longitude()} and {\tt distthreshold()} records the distance between them as well.  Merging the characteristics of both counties into that file and comparing shares is ordinary data work, and is in the replication files.
 
 \begin{stlog}
 \input{examples/berniniPredictors.tex.log}
@@ -688,7 +691,7 @@ Any of the above                & 56.3\% & 38.0\% \\
 \paragraph{Step 6: compare and, where warranted, combine corrections.}
 Table \ref{tab:berncompare} compares the corrections directly.  Consistent with Step 5, both channels matter here: the Conley correction alone raises the standard error by roughly 40\%, and TMO contributes further pairs beyond the distance band.  This application illustrates the general recommendation: when both geographic and non-geographic dependence are present, the combined estimator provides robustness to both.
 
-The corrections in Table \ref{tab:berncompare} are obtained as follows.  The three runs share the specification defined above and differ only in the distance options, and each line reports what {\tt tmo} leaves in {\tt e()}: the adjusted standard error {\tt e(tmo\_se)}, its ratio to the clustered standard error, and the share of pairs admitted to the variance {\tt e(pct\_ge\_thres)}.
+The corrections in Table \ref{tab:berncompare} are obtained as follows.  The three runs share the specification named in the first block and differ only in the distance options; each line reports what {\tt tmo} leaves in {\tt e()}, namely the adjusted standard error {\tt e(tmo\_se)}, its ratio to the clustered standard error, and the share of pairs admitted to the variance {\tt e(pct\_ge\_thres)}.
 
 \begin{stlog}
 \input{examples/berniniCompare.tex.log}
@@ -754,7 +757,7 @@ Baseline $+$ regressor-family measures (misuse)   & 63 & 27.3 & 0.52 & 1.11 \\
 \label{sscn:iv}
 A second application illustrates the workflow in an instrumental-variables design, where the choice of auxiliary outcomes requires one additional exclusion.  \citet{Bazzietal2023} study the long-run political consequences of the twentieth-century migration of Southern whites, in a cross-section of 1,886 U.S.\ counties.  The main specification regresses the 2016 Trump vote share on the Southern-born white population share in 1940, instrumented by a shift-share variable built from 1900 migration networks and predicted migration flows, with historical baseline controls, state fixed effects, and standard errors clustered by $60\times 60$-mile grid cells (their Table 2, Panel A, Column 4, the main specification).  Estimating this equation with {\tt ivreghdfe} returns $\widehat\beta = 1.026$ with a cluster-robust standard error of $0.167$, matching the published values.  The command is passed to {\tt cmd()} exactly as written; {\tt tmo} constructs the two-stage residualisation internally.\footnote{The dataset is rebuilt from the raw materials in the paper's replication package; a note accompanying the file in the repository documents the construction.  One endogenous regressor is supported.}
 
-Applying the Step 2 rules to the package yields $d=85$ auxiliary outcomes, among them Republican vote shares in earlier elections, the Southern Black population share, and census, farm and manufacturing variables.  The IV setting adds one requirement: the exclusions must cover the instrument's ingredients as well as the regressor's.  Here the shift-share machinery, meaning the origin-state migrant stocks, the predicted flows and the associated truncation indicators, measures the treatment, and all of it is excluded by the same logic that excludes the regressor family.
+Applying the Step 2 rules to the package yields $d=85$ auxiliary outcomes, among them Republican vote shares in earlier elections, the Southern Black population share, and census, farm and manufacturing variables.  The IV setting adds one requirement: the exclusions must cover the instrument's ingredients as well as the regressor's.  Here the shift-share machinery, meaning the origin-state migrant stocks, the predicted flows and the associated truncation indicators, measures the treatment, and all of it is excluded by the same logic that excludes the regressor family.  As in the guide application, the block below names the pieces of the specification once, here {\tt \$model}, {\tt \$fe} and {\tt \$grid}, and then runs {\tt tmo} with the IV command passed unchanged to {\tt cmd()}:
 
 \begin{stlog}
 \input{examples/bazziExample.tex.log}
@@ -885,9 +888,9 @@ Finally, we note two caveats.  TMO is designed for settings where dependence is 
 
 \clearpage
 
-  \begin{Athanks}
-    We are grateful to \ldots
-    \end{Athanks}
+%  \begin{Athanks}
+%    We are grateful to \ldots
+%  \end{Athanks}
     
     \bibliography{sj}
     
